@@ -6,7 +6,6 @@
     "pred_count": 41,
     "signed_error": -2,
     "mape_pct": 4.7,
-    "avg_elapsed_s": 13.58,
     "output_image": "spikes/000-count-anything-baseline/results/tennis-ball__tennis_ball.jpg"
   },
   {
@@ -16,18 +15,25 @@
     "pred_count": 125,
     "signed_error": 12,
     "mape_pct": 10.6,
-    "avg_elapsed_s": 13.58,
     "output_image": "spikes/000-count-anything-baseline/results/Heidelbeeren__blueberry.jpg"
   },
   {
     "image": "Heidelbeeren-bnw.jpg",
     "query": "blueberry",
-    "gt": 110,
+    "gt": 113,
     "pred_count": 131,
-    "signed_error": 21,
-    "mape_pct": 19.1,
-    "avg_elapsed_s": 13.58,
+    "signed_error": 18,
+    "mape_pct": 15.9,
     "output_image": "spikes/000-count-anything-baseline/results/Heidelbeeren-bnw__blueberry.jpg"
+  },
+  {
+    "image": "Heidelbeeren-bnw2.jpg",
+    "query": "blueberry",
+    "gt": 113,
+    "pred_count": 137,
+    "signed_error": 24,
+    "mape_pct": 21.2,
+    "output_image": "spikes/000-count-anything-baseline/results/Heidelbeeren-bnw2__blueberry.jpg"
   },
   {
     "image": "candy-ball.jpg",
@@ -36,7 +42,15 @@
     "pred_count": 128,
     "signed_error": -4,
     "mape_pct": 3.0,
-    "avg_elapsed_s": 13.58,
     "output_image": "spikes/000-count-anything-baseline/results/candy-ball__candy.jpg"
+  },
+  {
+    "image": "candy-bnw.jpg",
+    "query": "candy",
+    "gt": 132,
+    "pred_count": 123,
+    "signed_error": -9,
+    "mape_pct": 6.8,
+    "output_image": "spikes/000-count-anything-baseline/results/candy-bnw__candy.jpg"
   }
 ]

@@ -78,16 +78,31 @@
     "image": "Heidelbeeren-bnw.jpg",
     "query": "blueberry",
     "grid": "2x2",
-    "gt": 110,
+    "gt": 113,
     "raw_count": 133,
     "pred_count": 119,
-    "signed_error": 9,
-    "mape_pct": 8.2,
+    "signed_error": 6,
+    "mape_pct": 5.3,
     "wall_elapsed_s": 11.48,
     "prompt_tokens": 12740,
     "completion_tokens": 3156,
     "reasoning_tokens": 1605,
     "output_image": "spikes/002-gemini-tiled-grid/results/Heidelbeeren-bnw__blueberry__2x2.jpg"
+  },
+  {
+    "image": "Heidelbeeren-bnw2.jpg",
+    "query": "blueberry",
+    "grid": "2x2",
+    "gt": 113,
+    "raw_count": 144,
+    "pred_count": 127,
+    "signed_error": 14,
+    "mape_pct": 12.4,
+    "wall_elapsed_s": 10.98,
+    "prompt_tokens": 12740,
+    "completion_tokens": 3835,
+    "reasoning_tokens": 2163,
+    "output_image": "spikes/002-gemini-tiled-grid/results/Heidelbeeren-bnw2__blueberry__2x2.jpg"
   },
   {
     "image": "candy-ball.jpg",
@@ -103,5 +118,20 @@
     "completion_tokens": 4685,
     "reasoning_tokens": 2831,
     "output_image": "spikes/002-gemini-tiled-grid/results/candy-ball__candy__2x2.jpg"
+  },
+  {
+    "image": "candy-bnw.jpg",
+    "query": "candy",
+    "grid": "2x2",
+    "gt": 132,
+    "raw_count": 163,
+    "pred_count": 144,
+    "signed_error": 12,
+    "mape_pct": 9.1,
+    "wall_elapsed_s": 12.84,
+    "prompt_tokens": 12568,
+    "completion_tokens": 3625,
+    "reasoning_tokens": 1823,
+    "output_image": "spikes/002-gemini-tiled-grid/results/candy-bnw__candy__2x2.jpg"
   }
 ]

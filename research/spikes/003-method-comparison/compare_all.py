@@ -103,7 +103,7 @@ def main() -> None:
             out_dir / "montage_apples.jpg",
         )
 
-    # New 4 test images from docs/image/test/
+    # 6 test images from docs/image/test/
     make_montage(
         [
             ("Count-Anything SAM3 (count=41, ~13.6s)", s0_dir / "tennis-ball__tennis_ball.jpg"),
@@ -133,6 +133,15 @@ def main() -> None:
 
     make_montage(
         [
+            ("Count-Anything SAM3 (count=137, ~16.6s)", s0_dir / "Heidelbeeren-bnw2__blueberry.jpg"),
+            ("Gemini Single-Pass (count=128, 14.0s)", s1_dir / "Heidelbeeren-bnw2__blueberry.jpg"),
+            ("Gemini 2x2 Tiled + NMS (count=127, 11.0s)", s2_dir / "Heidelbeeren-bnw2__blueberry__2x2.jpg"),
+        ],
+        out_dir / "montage_heidelbeeren_bnw2.jpg",
+    )
+
+    make_montage(
+        [
             ("Count-Anything SAM3 (count=128, ~13.6s)", s0_dir / "candy-ball__candy.jpg"),
             ("Gemini Single-Pass (count=128, 19.0s)", s1_dir / "candy-ball__candy.jpg"),
             ("Gemini 2x2 Tiled + NMS (count=145, 14.1s)", s2_dir / "candy-ball__candy__2x2.jpg"),
@@ -140,7 +149,16 @@ def main() -> None:
         out_dir / "montage_candy_ball.jpg",
     )
 
-    print("Generated all 8 comparison montages in:", out_dir)
+    make_montage(
+        [
+            ("Count-Anything SAM3 (count=123, ~16.6s)", s0_dir / "candy-bnw__candy.jpg"),
+            ("Gemini Single-Pass (count=116, 12.5s)", s1_dir / "candy-bnw__candy.jpg"),
+            ("Gemini 2x2 Tiled + NMS (count=144, 12.8s)", s2_dir / "candy-bnw__candy__2x2.jpg"),
+        ],
+        out_dir / "montage_candy_bnw.jpg",
+    )
+
+    print("Generated all 10 comparison montages in:", out_dir)
 
 
 if __name__ == "__main__":

@@ -179,8 +179,10 @@ def main() -> None:
         (samples_dir / "apples.jpg", "apples", 215),
         (test_dir / "tennis-ball.jpg", "tennis ball", 43),
         (test_dir / "Heidelbeeren.jpg", "blueberry", 113),
-        (test_dir / "Heidelbeeren-bnw.jpg", "blueberry", 110),
+        (test_dir / "Heidelbeeren-bnw.jpg", "blueberry", 113),
+        (test_dir / "Heidelbeeren-bnw2.jpg", "blueberry", 113),
         (test_dir / "candy-ball.jpg", "candy", 132),
+        (test_dir / "candy-bnw.jpg", "candy", 132),
     ]
 
     summary = []
