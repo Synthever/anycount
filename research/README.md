@@ -55,12 +55,14 @@ Model VLM modern seperti **Gemini (`gemini-3.8-flash-high`)** memiliki kemampuan
 | `containers.jpg` (`"container"`) | **64** | **64** (Ref)<br>28.1s di Colab A100 | **29** (-54.7% err, **GAGAL**)<br>6.04s | **65** (+1.6% err, raw 71 → dedup 65)<br>**31.53s** |
 | `apples.jpg` (`"apples"`) | **~215–340** (tumpukan padat) | **339**<br>23.0s CPU | **289**<br>39.94s | **343** (raw 374 → dedup 343)<br>**21.09s** |
 
-### Analisis Hasil:
-1. **Objek Renggang–Menengah (1–35 objek, misal `cats`, `remote control`, `coins`):**
-   - **Gemini Single-Pass (`001`)** mencapai akurasi **100% tepat** (`2/2` kucing, `2/2` remote, `24/24` koin) dengan waktu hanya **5–14 detik** dan titik jatuh tepat di tengah objek.
-2. **Objek Padat (40–100+ objek, misal `containers.jpg` 64 kontainer):**
-   - **Gemini Single-Pass (`001`) jeblok (hanya menemukan 29 dari 64 kontainer, error -54.7%)** karena pintu kontainer yang sempit di sisi kiri gambar terlalu kecil dalam resolusi 1x pass dan model berhenti lebih awal.
-   - **Gemini 2x2 Tiled Grid + Point-NMS (`002`) menyelesaikan masalah ini secara tuntas:** dengan memotong gambar menjadi grid `2x2` (overlap 8%), memanggil Gemini secara paralel di 4 tile sekaligus, lalu menghapus duplikat di perbatasan tile menggunakan *Core-Region Filtering + Adaptive Point-NMS*, jumlah terdeteksi menjadi **65 kontainer (hanya selisih +1 atau 1.6% dari 64 kontainer Count-Anything)** tanpa butuh GPU server!
+### Analisis Hasil & Audit Visual Titik (Penting!):
+1. **Objek Renggang–Menengah (`cats.jpg`, `coins.jpg` — 100% Presisi Murni):**
+   - Pada `coins.jpg` (GT: 24 koin dalam grid 4x6), baik **Single-Pass (`13.93s`)** maupun **2x2 Tiled + NMS (`20.78s`)** mencapai **24/24 True Positives (0 false positive, 0 false negative)**. Setiap koin mendapat tepat 1 titik di tengah, dan koin yang tersentuh garis potong tile pada mode `2x2` berhasil di-deduplikasi oleh *Point-NMS* tanpa dihitung ganda.
+2. **Objek Padat (`containers.jpg` 64 kontainer — Single-Pass vs Tiled):**
+   - **Gemini Single-Pass (`001`) gagal total (29/64, error -54.7%):** Audit visual menunjukkan Single-Pass melewatkan 3 dari 4 kolom tumpukan kontainer di sisi kiri (hanya menandai 7 dari 28 kontainer), melewatkan tumpukan depan *NYK Logistics / Gold*, dan melewatkan 6 kontainer di kolom sempit tengah.
+   - **Gemini 2x2 Tiled Grid + Point-NMS (`002`) berhasil memulihkan tumpukan padat (65 vs 64, selisih total +1 / 1.6%):** Seluruh 28 kontainer pada tumpukan 7x4 di sisi kiri berhasil terdeteksi.
+   - **Catatan Kejujuran Metrik pada `containers.jpg`:** Walaupun angka total `65` sangat dekat dengan `64`, audit visual per-titik menunjukkan bahwa beberapa kontainer panjang 40-feet yang terbelah garis tengah vertikal (*Hyundai*, *China Shipping*, *NYK Logistics*) atau terlihat dua sisinya sekaligus (sisi panjang + pintu depan) mendapat 2 titik karena jarak kedua titik tersebut (~100 px) lebih lebar dari radius lingkaran *Point-NMS* (`15.2 px`), yang kebetulan saling menutupi dengan 3 kontainer tersembunyi (*recessed*) yang terlewat.
+   - **Solusi Arsitektural:** Meminta `[ymin, xmin, ymax, xmax]` (bounding box) alih-alih titik buta `[y, x]` pada mode Tiled memungkinkan *Box-NMS / Seam Stitching* untuk objek memanjang, ditambah **UI Koreksi Manual (Tap-to-Add / Tap-to-Delete)** di aplikasi sebagai pengaman akhir.
 3. **Efisiensi Kecepatan pada Objek Ratusan (`apples.jpg`):**
    - Pada tumpukan apel ratusan buah, menjalankan `2x2 Tiled Grid` secara paralel justru **memangkas waktu tunggu hampir 2x lebih cepat** (`21.09s` vs `39.94s` pada Single-Pass) karena 4 stream paralel men-generate ~90 titik per tile jauh lebih cepat daripada 1 stream tunggal yang harus men-generate ~300 titik secara berurutan.
 
