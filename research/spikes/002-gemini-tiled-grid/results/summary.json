@@ -1,0 +1,47 @@
+[
+  {
+    "image": "coins.jpg",
+    "query": "coins",
+    "grid": "2x2",
+    "gt": 24,
+    "raw_count": 25,
+    "pred_count": 24,
+    "signed_error": 0,
+    "mape_pct": 0.0,
+    "wall_elapsed_s": 20.78,
+    "prompt_tokens": 12796,
+    "completion_tokens": 4399,
+    "reasoning_tokens": 4090,
+    "output_image": "spikes/002-gemini-tiled-grid/results/coins__coins__2x2.jpg"
+  },
+  {
+    "image": "containers.jpg",
+    "query": "container",
+    "grid": "2x2",
+    "gt": 64,
+    "raw_count": 71,
+    "pred_count": 65,
+    "signed_error": 1,
+    "mape_pct": 1.6,
+    "wall_elapsed_s": 31.53,
+    "prompt_tokens": 12680,
+    "completion_tokens": 7719,
+    "reasoning_tokens": 6941,
+    "output_image": "spikes/002-gemini-tiled-grid/results/containers__container__2x2.jpg"
+  },
+  {
+    "image": "apples.jpg",
+    "query": "apples",
+    "grid": "2x2",
+    "gt": 215,
+    "raw_count": 374,
+    "pred_count": 343,
+    "signed_error": 128,
+    "mape_pct": 59.5,
+    "wall_elapsed_s": 21.09,
+    "prompt_tokens": 12568,
+    "completion_tokens": 8160,
+    "reasoning_tokens": 3838,
+    "output_image": "spikes/002-gemini-tiled-grid/results/apples__apples__2x2.jpg"
+  }
+]

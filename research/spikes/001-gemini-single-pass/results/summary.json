@@ -1,0 +1,67 @@
+[
+  {
+    "image": "cats.jpg",
+    "query": "cats",
+    "gt": 2,
+    "pred_count": 2,
+    "signed_error": 0,
+    "mape_pct": 0.0,
+    "elapsed_s": 5.71,
+    "prompt_tokens": 3191,
+    "completion_tokens": 337,
+    "reasoning_tokens": 313,
+    "output_image": "spikes/001-gemini-single-pass/results/cats__cats.jpg"
+  },
+  {
+    "image": "cats.jpg",
+    "query": "remote control",
+    "gt": 2,
+    "pred_count": 2,
+    "signed_error": 0,
+    "mape_pct": 0.0,
+    "elapsed_s": 5.03,
+    "prompt_tokens": 3192,
+    "completion_tokens": 333,
+    "reasoning_tokens": 309,
+    "output_image": "spikes/001-gemini-single-pass/results/cats__remote_control.jpg"
+  },
+  {
+    "image": "coins.jpg",
+    "query": "coins",
+    "gt": 24,
+    "pred_count": 24,
+    "signed_error": 0,
+    "mape_pct": 0.0,
+    "elapsed_s": 13.93,
+    "prompt_tokens": 3200,
+    "completion_tokens": 1867,
+    "reasoning_tokens": 1618,
+    "output_image": "spikes/001-gemini-single-pass/results/coins__coins.jpg"
+  },
+  {
+    "image": "containers.jpg",
+    "query": "container",
+    "gt": 64,
+    "pred_count": 29,
+    "signed_error": -35,
+    "mape_pct": 54.7,
+    "elapsed_s": 6.04,
+    "prompt_tokens": 3248,
+    "completion_tokens": 287,
+    "reasoning_tokens": 0,
+    "output_image": "spikes/001-gemini-single-pass/results/containers__container.jpg"
+  },
+  {
+    "image": "apples.jpg",
+    "query": "apples",
+    "gt": 215,
+    "pred_count": 289,
+    "signed_error": 74,
+    "mape_pct": 34.4,
+    "elapsed_s": 39.94,
+    "prompt_tokens": 3220,
+    "completion_tokens": 5672,
+    "reasoning_tokens": 2254,
+    "output_image": "spikes/001-gemini-single-pass/results/apples__apples.jpg"
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "count": 2,
+  "elapsed_s": 5.71,
+  "usage": {
+    "prompt_tokens": 3191,
+    "completion_tokens": 337,
+    "total_tokens": 3528,
+    "completion_tokens_details": {
+      "reasoning_tokens": 313
+    }
+  },
+  "points": [
+    {
+      "x": 147.2,
+      "y": 228.0,
+      "norm_y": 475.0,
+      "norm_x": 230.0
+    },
+    {
+      "x": 476.8,
+      "y": 182.4,
+      "norm_y": 380.0,
+      "norm_x": 745.0
+    }
+  ]
+}
