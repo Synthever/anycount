@@ -7,34 +7,7 @@ Dokumentasi riset dan eksperimen terukur (*spike*) untuk menentukan arsitektur p
 
 ---
 
-## Struktur Folder Riset
-
-```text
-research/
-├── README.md                          # Ringkasan eksekutif, benchmark 9 skenario, & rekomendasi arsitektur
-├── samples/                           # Sampel uji awal (cats, coins, containers, apples)
-└── spikes/
-    ├── 000-count-anything-baseline/   # Spike 000: Baseline Count-Anything (SAM3 3.4GB) pada docs/image/test/
-    │   ├── README.md
-    │   ├── run_ca_batch.py
-    │   └── results/
-    ├── 001-gemini-single-pass/        # Spike 001: Gemini 3.8 Flash Single-Pass Spatial Pointing
-    │   ├── README.md
-    │   ├── run_single_pass.py
-    │   └── results/
-    ├── 002-gemini-tiled-grid/         # Spike 002: Gemini 3.8 Flash Parallel Tiled Grid (2x2) + Point-NMS
-    │   ├── README.md
-    │   ├── run_tiled_grid.py
-    │   └── results/
-    └── 003-method-comparison/         # Spike 003: Perbandingan Visual Side-by-Side (8 Montage)
-        ├── README.md
-        ├── compare_all.py
-        └── results/
-```
-
----
-
-## Hasil Benchmark Lengkap (9 Skenario Uji)
+##Hasil Benchmark Lengkap (11 Skenario Uji)
 
 > **Catatan Metodologi:** Seluruh pengujian dilakukan secara *zero-shot* tanpa *fine-tuning* khusus domain. Model VLM yang diuji adalah `gemini-3.8-flash-high` melalui endpoint `jr.rkhyg.xyz/v1` dibandingkan langsung dengan **Count-Anything (SAM3 848M param, checkpoint 3.4 GB)**.
 
@@ -44,39 +17,36 @@ research/
 | 2 | `cats.jpg` (`"remote control"`) | **2** | — | **2** (**0% err, 5.03s**) | — | **Gemini Single-Pass** |
 | 3 | `coins.jpg` (`"coins"`) | **24** | — | **24** (**0% err, 13.93s**) | **24** (0% err, 20.78s) | **Gemini Single-Pass** |
 | 4 | `tennis-ball.jpg` (`"tennis ball"`) | **43** (41 utuh + 2 tepi) | **41** (4.7% err, ~13.6s) | **42** (**2.3% err, 7.71s**) | **42** (2.3% err, 10.67s) | **Gemini Single-Pass** |
-| 5 | `Heidelbeeren.jpg` (`"blueberry"`) | **~113** | **125** (10.6% err, ~13.6s) | **122** (**8.0% err, 12.39s**) | **122** (8.0% err, 11.34s) | **Gemini Single-Pass** |
-| 6 | `Heidelbeeren-bnw.jpg` (`"blueberry"`) | **~110** (Hitam-Putih) | **131** (19.1% err, ~13.6s) | **112** (**1.8% err, 12.10s**) | **119** (8.2% err, 11.48s) | **Gemini Single-Pass** |
-| 7 | `candy-ball.jpg` (`"candy"`) | **~132** | **128** (**3.0% err**, ~13.6s) | **128** (**3.0% err, 19.02s**) | **145** (9.8% err, 14.06s) | **Gemini Single-Pass / CA** |
-| 8 | `containers.jpg` (`"container"`) | **64** | **64** (Ref, 28.1s A100) | **29** (54.7% err, **GAGAL**) | **65** (**1.6% err, 31.53s**) | **Gemini 2x2 Tiled** |
-| 9 | `apples.jpg` (`"apples"`) | **~215–340** | **339** (23.0s CPU) | **289** (39.94s) | **336–343** (**21.09s**) | **Gemini 2x2 Tiled** |
+| 5 | `Heidelbeeren.jpg` (`"blueberry"`, Warna) | **~113** | **125** (10.6% err, ~13.6s) | **122** (**8.0% err, 12.39s**) | **122** (**8.0% err, 11.34s**) | **Gemini Single / Tiled** |
+| 6 | `Heidelbeeren-bnw.jpg` (`"blueberry"`, B&W) | **~113** | **131** (15.9% err, ~13.6s) | **112** (**0.9% err, 12.10s**) | **119** (5.3% err, 11.48s) | **Gemini Single-Pass** |
+| 7 | `Heidelbeeren-bnw2.jpg` (`"blueberry"`, High-Contrast B&W) | **~113** | **137** (21.2% err, ~16.6s) | **128** (13.3% err, 13.99s) | **127** (**12.4% err, 10.98s**) | **Gemini 2x2 Tiled** |
+| 8 | `candy-ball.jpg` (`"candy"`, Warna) | **~132** | **128** (**3.0% err**, ~13.6s) | **128** (**3.0% err, 19.02s**) | **145** (9.8% err, 14.06s) | **Gemini Single-Pass / CA** |
+| 9 | `candy-bnw.jpg` (`"candy"`, B&W) | **~132** | **123** (6.8% err, 3 FP mangkuk) | **116** (12.1% err, 12.49s) | **144** (9.1% err, 12.84s) | **CA / Gemini Single+Tiled** |
+| 10 | `containers.jpg` (`"container"`) | **64** | **64** (Ref, 28.1s A100) | **29** (54.7% err, **GAGAL**) | **65** (**1.6% err, 31.53s**) | **Gemini 2x2 Tiled** |
+| 11 | `apples.jpg` (`"apples"`) | **~215–340** | **339** (23.0s CPU) | **289** (39.94s) | **336–343** (**21.09s**) | **Gemini 2x2 Tiled** |
 
 ---
 
-## Temuan Kunci dari 4 Gambar Uji Baru (`docs/image/test/`)
+## Analisis Ablasi Warna & Kontras (`Heidelbeeren` & `candy` Color vs B&W)
 
-1. **`tennis-ball.jpg` (GT 43 bola = 41 utuh + 2 terpotong di tepi ekstrem):**
-   - **Gemini Single-Pass (`42`, 7.71 detik) mengungguli Count-Anything (`41`, ~13.6 detik):** Audit visual membuktikan Gemini menandai ke-41 bola utuh **ditambah** 1 bola yang terpotong di tepi kanan dengan tepat 1 titik di tengah setiap bola (0 *false positive*, 0 *double-dot*), hanya melewatkan 1 irisan tipis bola (<5% area) yang terpotong tepat di bawah tali net tepi paling kiri.
-2. **`candy-ball.jpg` (GT ~132 permen warna-warni bertumpuk padat):**
-   - **Gemini Single-Pass menghasilkan angka yang SAMA PERSIS dengan Count-Anything (`128` vs `128`)** dalam 19 detik tanpa GPU!
-   - Audit visual pada `candy-ball__candy.jpg` mengonfirmasi **0 double-dot** di seluruh 128 permen (setiap titik jatuh bersih di tengah permen yang berbeda).
-   - Sebaliknya, pada foto *close-up* seperti `candy-ball.jpg` di mana ukuran tiap permen cukup besar, memotong gambar menjadi `2x2 Tiled Grid` justru menyebabkan *over-count* (`145`), karena permen besar yang terbelah garis potong tengah mendapat 2 titik yang jaraknya lebih lebar dari radius *Point-NMS*.
-3. **`Heidelbeeren.jpg` (Warna) vs `Heidelbeeren-bnw.jpg` (Hitam-Putih):**
-   - Pengujian ini membuktikan **ketahanan terhadap hilangnya warna (*color invariance*)**:
-   - Saat foto blueberry diubah menjadi hitam-putih (`Heidelbeeren-bnw.jpg`), model **Count-Anything mengalami degradasi** (over-count naik dari `125` menjadi `131` karena bayangan cekungan gelap disangka buah).
-   - Sebaliknya, **Gemini Single-Pass sangat stabil dan akurat** (`122` pada warna, dan `112` pada hitam-putih dalam 12.1 detik dengan akurasi posisi titik yang sangat bersih).
-4. **Kapan Harus Single-Pass vs Kapan Harus 2x2 Tiled Grid? (Aturan Ukuran Objek Relatif):**
-   - Eksperimen ini mengungkap bahwa batas kemampuan *Single-Pass* **bukan semata-mata jumlah objek (`N`), melainkan ukuran piksel relatif tiap objek terhadap lebar gambar**:
-     - **Close-up / Objek Berukuran Sedang–Besar (diameter objek `>= 3.5%` lebar gambar, seperti `tennis-ball`, `candy-ball` 128 objek, `Heidelbeeren` 112–122 objek, `coins` 24 objek):** **Gemini Single-Pass (`001`)** bekerja jauh lebih akurat dan bersih (tanpa efek samping potongan *seam* tile) hingga ~135 objek sekaligus!
-     - **Wide-Angle / Objek Kecil & Jauh (ukuran objek `< 3%` lebar gambar atau jumlah `> 180`, seperti pintu kontainer sempit di `containers.jpg` atau ratusan apel kecil di `apples.jpg`):** **Gemini 2x2 Tiled Grid + NMS (`002`)** wajib dipakai untuk memperbesar resolusi lokal tiap tile.
+1. **Ablasi 3 Varian Blueberry (`Heidelbeeren.jpg` vs `Heidelbeeren-bnw.jpg` vs `Heidelbeeren-bnw2.jpg`):**
+   - Ketiga gambar memiliki dimensi piksel yang sama persis (`736x1104`), menguji ketahanan model saat warna dihilangkan (`bnw`, `mean=45.0`) dan saat kontras grayscale ditarik tinggi (`bnw2`, `mean=96.9, std=63.9`):
+   - **Kelemahan Count-Anything SAM3 terhadap Kontras Tinggi:** Skor Count-Anything terus membengkak dari `125` (warna) → `131` (B&W) → **`137`** (B&W kontras tinggi). Audit visual menunjukkan kontras tinggi membuat pantulan samar pada buah di lapisan bawah (di sela-sela bayangan gelap) terlihat seperti objek terpisah dengan tepi tajam, sehingga SAM3 mengalami *over-segmentation*.
+   - **Perilaku Gemini Single-Pass vs 2x2 Tiled pada `Heidelbeeren-bnw2.jpg`:**
+     - Pada `Heidelbeeren-bnw2.jpg`, baik Single-Pass (`128`) maupun 2x2 Tiled (`127`, `10.98s`) jauh lebih tahan terhadap jebakan bayangan celah dibanding SAM3 (`137`).
+     - Namun audit visual mengungkap bahwa pada `Heidelbeeren-bnw2.jpg`, **Gemini 2x2 Tiled (`127`) jauh lebih rapi penempatan titiknya** dibanding Single-Pass (`128`), karena Single-Pass sempat melewatkan 5–6 buah di tengah tetapi menggantinya dengan beberapa *double-dot* di tepi kiri bawah.
+
+2. **Ablasi Permen Warna vs Hitam-Putih (`candy-ball.jpg` vs `candy-bnw.jpg`):**
+   - Saat warna permen yang mencolok (merah, kuning, biru, hijau, oranye, coklat) diubah menjadi abu-abu (`candy-bnw.jpg`):
+   - **Gemini Single-Pass turun dari `128` ke `116` (-12 permen, `12.49s`):** Tanpa kontras warna, permen berwarna gelap yang terpotong di pinggir bingkai (tepi bawah & kiri) serta permen gelap yang berdempetan (*iso-luminant dark candies*) menyatu dengan bayangan, sehingga dilewati oleh Single-Pass. Namun **Gemini Single-Pass memiliki 0 false positive** pada pantulan dinding mangkuk kaca/logam di pojok atas.
+   - **Count-Anything SAM3 turun dari `128` ke `123` (-5 permen, `~16.6s`):** Lebih unggul menangkap potongan permen di tepi bingkai karena berbasis kontur lokal, **tetapi mengalami halusinasi 3 titik false-positive pada pantulan buram dinding mangkuk** di pojok kiri atas dan kanan atas (karena tanpa warna, pantulan mangkuk dikira permen).
+   - **Gemini 2x2 Tiled (`145` warna vs `144` B&W, `12.84s`):** Hampir **100% kebal terhadap hilangnya warna** (hanya beda 1 titik antara warna dan B&W!) karena perbesaran 2x2 membuat batas tipis antar-permen gelap dan permen tepi tetap terlihat jelas.
 
 ---
 
 ## Rekomendasi Arsitektur Final untuk AnyCount
 
-Berdasarkan bukti eksperimen di atas, metode paling efisien untuk **AnyCount** adalah:
-1. **Default Engine: Gemini Single-Pass Spatial Pointing (`001`) + Client/Server Canvas Renderer:**
-   - Menangani **90% kasus foto pengguna** (dari 1 hingga ~135 objek *close-up* seperti buah, permen, bola, koin, barang) dalam **5–19 detik** dengan akurasi setara atau melampaui Count-Anything 3.4 GB, **tanpa biaya server GPU**.
-2. **Dense / Far-Object Mode: Parallel 2x2 Tiled Grid + Seam NMS (`002`):**
-   - Disediakan sebagai mode *"Small / Distant Objects (Grid Scan)"* untuk foto jarak jauh di mana objek terlihat sangat kecil (seperti tumpukan kontainer di pelabuhan atau ratusan objek mikro).
-3. **Interactive Dot Correction Canvas (Wajib di UI):**
-   - Titik koordinat `[x, y]` dikirim sebagai JSON ke frontend agar digambar di atas `<canvas>` interaktif — user bisa tap titik untuk menghapus atau tap objek yang terlewat untuk menambah titik secara instan.
+Dari 11 eksperimen di atas, terlihat jelas bahwa **Gemini VLM (Single-Pass + 2x2 Tiled Grid)** mampu menyamai dan di banyak kasus mengalahkan **Count-Anything (SAM3 3.4 GB)** tanpa membutuhkan server GPU sepeser pun:
+1. **Mode Standar (Single-Pass Spatial Pointing):** Cepat (`5–15 detik`), sangat akurat untuk foto *close-up* berwarna maupun hitam-putih (`cats`, `coins`, `tennis-ball`, `Heidelbeeren`, `candy-ball`).
+2. **Mode Detail / Padat (Parallel 2x2 Tiled Grid + NMS):** Sangat efektif untuk objek kecil/jauh (`containers`), tumpukan ratusan (`apples`), atau foto hitam-putih berkontras berat/gelap (`Heidelbeeren-bnw2`, `candy-bnw`) dengan waktu tunggu hanya **11–31 detik** karena ke-4 kuadran diproses paralel.
+3. **Interactive Canvas UI (Tap-to-Add / Tap-to-Delete):** Mengizinkan user menyempurnakan 1–5 titik yang meleset di tepi atau bayangan dalam hitungan detik.
