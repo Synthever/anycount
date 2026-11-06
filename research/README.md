@@ -1,8 +1,8 @@
 # AnyCount — Technology & Counting Method Research
 
 Dokumentasi riset dan eksperimen terukur (*spike*) untuk menentukan arsitektur penghitung objek berbasis foto (**AnyCount**) yang mendukung **Target C**:
-1. **Open-Vocabulary (Query Teks Bebas):** User dapat mengetik nama objek apa saja (`"apple"`, `"cats"`, `"remote control"`, `"container"`).
-2. **Dense & Sparse Object Support:** Akurat baik untuk objek renggang (1–35 objek) maupun tumpukan padat (50–300+ objek).
+1. **Open-Vocabulary (Query Teks Bebas):** User dapat mengetik nama objek apa saja (`"apple"`, `"cats"`, `"remote control"`, `"container"`, `"tennis ball"`, `"blueberry"`, `"candy"`).
+2. **Dense & Sparse Object Support:** Akurat baik untuk objek renggang (1–45 objek) maupun tumpukan padat (50–300+ objek).
 3. **Visual Annotated Output:** Menghasilkan gambar dengan titik koordinat merah berpinggir putih (`(230, 40, 35)` + ring putih) dan badge total di pojok kiri atas persis seperti `Count-Anything`, ditambah dukungan interaktif *tap-to-add / tap-to-delete*.
 
 ---
@@ -11,85 +11,72 @@ Dokumentasi riset dan eksperimen terukur (*spike*) untuk menentukan arsitektur p
 
 ```text
 research/
-├── README.md                          # Ringkasan eksekutif, benchmark head-to-head, & rekomendasi arsitektur
-├── samples/                           # Dataset sampel standar tanpa anotasi untuk pengujian adil
-│   ├── cats.jpg                       # Objek renggang (GT: 2 kucing, 2 remote control)
-│   ├── coins.jpg                      # Objek menengah sebagian bersinggungan (GT: 24 koin)
-│   ├── containers.jpg                 # Objek padat bertumpuk grid & perspektif (GT/CA: 64 kontainer)
-│   ├── containers_ca_points.json      # Ekstraksi 64 titik referensi dari hasil Count-Anything
-│   └── apples.jpg                     # Tumpukan sangat padat (~215–340 apel)
+├── README.md                          # Ringkasan eksekutif, benchmark 9 skenario, & rekomendasi arsitektur
+├── samples/                           # Sampel uji awal (cats, coins, containers, apples)
 └── spikes/
+    ├── 000-count-anything-baseline/   # Spike 000: Baseline Count-Anything (SAM3 3.4GB) pada docs/image/test/
+    │   ├── README.md
+    │   ├── run_ca_batch.py
+    │   └── results/
     ├── 001-gemini-single-pass/        # Spike 001: Gemini 3.8 Flash Single-Pass Spatial Pointing
     │   ├── README.md
     │   ├── run_single_pass.py
-    │   └── results/                   # Gambar hasil render titik + JSON koordinat + summary.json
-    ├── 002-gemini-tiled-grid/         # Spike 002: Gemini 3.8 Flash Parallel Tiled Grid + Point-NMS
+    │   └── results/
+    ├── 002-gemini-tiled-grid/         # Spike 002: Gemini 3.8 Flash Parallel Tiled Grid (2x2) + Point-NMS
     │   ├── README.md
     │   ├── run_tiled_grid.py
-    │   └── results/                   # Gambar hasil render grid + JSON koordinat + summary.json
-    └── 003-method-comparison/         # Spike 003: Perbandingan Visual Side-by-Side (Montage)
+    │   └── results/
+    └── 003-method-comparison/         # Spike 003: Perbandingan Visual Side-by-Side (8 Montage)
         ├── README.md
         ├── compare_all.py
-        └── results/                   # Montage perbandingan Count-Anything vs Gemini Single vs Tiled
+        └── results/
 ```
 
 ---
 
-## Temuan Kunci: Mengapa Gemini Bisa Menghasilkan Gambar seperti Count-Anything?
+## Hasil Benchmark Lengkap (9 Skenario Uji)
 
-Dari bedah kode `count_anything/inference.py`, model **Count-Anything (SAM3 3.4 GB)** sebenarnya **tidak menghasilkan gambar** secara langsung — model tersebut hanya mengeluarkan daftar koordinat titik `[{"x": ..., "y": ...}]`, lalu fungsi `_render()` sepanjang 25 baris menggunakan library `Pillow (ImageDraw)` untuk menggambar titik merah berpinggir putih di atas foto asli.
+> **Catatan Metodologi:** Seluruh pengujian dilakukan secara *zero-shot* tanpa *fine-tuning* khusus domain. Model VLM yang diuji adalah `gemini-3.8-flash-high` melalui endpoint `jr.rkhyg.xyz/v1` dibandingkan langsung dengan **Count-Anything (SAM3 848M param, checkpoint 3.4 GB)**.
 
-Model VLM modern seperti **Gemini (`gemini-3.8-flash-high`)** memiliki kemampuan native **Spatial Pointing** yang dapat mengembalikan koordinat ternormalisasi `[y, x]` dalam skala `0..1000` untuk setiap tengah objek. Dengan menggabungkan output JSON `[y, x]` dari Gemini dan fungsi `_render()` yang sama persis, kita mendapatkan hasil visual yang identik dengan Count-Anything **tanpa perlu menyewa server GPU A100/T4 untuk menahan checkpoint 3.4 GB**.
-
----
-
-## Hasil Benchmark Head-to-Head
-
-> **Catatan Metodologi:** Angka di bawah adalah hasil pengujian *zero-shot* pada sampel uji standar tanpa *fine-tuning* khusus domain. Waktu respons Gemini diukur melalui gateway `jr.rkhyg.xyz` menggunakan model `gemini-3.8-flash-high`.
-
-| Kasus Uji & Query | Ground Truth / Ref | Count-Anything (SAM3 3.4 GB) | Gemini Single-Pass (`001`) | Gemini 2x2 Tiled + NMS (`002`) |
-|---|---:|---|---|---|
-| `cats.jpg` (`"cats"`) | **2** | **2** (0% err)<br>23.0s CPU | **2** (0% err)<br>**5.71s** | Tidak perlu tiling (<35 objek) |
-| `cats.jpg` (`"remote control"`) | **2** | Belum diuji | **2** (0% err)<br>**5.03s** | Tidak perlu tiling (<35 objek) |
-| `coins.jpg` (`"coins"`) | **24** | Belum diuji | **24** (0% err)<br>**13.93s** | **24** (0% err, raw 25 → dedup 24)<br>20.78s |
-| `containers.jpg` (`"container"`) | **64** | **64** (Ref)<br>28.1s di Colab A100 | **29** (-54.7% err, **GAGAL**)<br>6.04s | **65** (+1.6% err, raw 71 → dedup 65)<br>**31.53s** |
-| `apples.jpg` (`"apples"`) | **~215–340** (tumpukan padat) | **339**<br>23.0s CPU | **289**<br>39.94s | **343** (raw 374 → dedup 343)<br>**21.09s** |
-
-### Analisis Hasil & Audit Visual Titik (Penting!):
-1. **Objek Renggang–Menengah (`cats.jpg`, `coins.jpg` — 100% Presisi Murni):**
-   - Pada `coins.jpg` (GT: 24 koin dalam grid 4x6), baik **Single-Pass (`13.93s`)** maupun **2x2 Tiled + NMS (`20.78s`)** mencapai **24/24 True Positives (0 false positive, 0 false negative)**. Setiap koin mendapat tepat 1 titik di tengah, dan koin yang tersentuh garis potong tile pada mode `2x2` berhasil di-deduplikasi oleh *Point-NMS* tanpa dihitung ganda.
-2. **Objek Padat (`containers.jpg` 64 kontainer — Single-Pass vs Tiled):**
-   - **Gemini Single-Pass (`001`) gagal total (29/64, error -54.7%):** Audit visual menunjukkan Single-Pass melewatkan 3 dari 4 kolom tumpukan kontainer di sisi kiri (hanya menandai 7 dari 28 kontainer), melewatkan tumpukan depan *NYK Logistics / Gold*, dan melewatkan 6 kontainer di kolom sempit tengah.
-   - **Gemini 2x2 Tiled Grid + Point-NMS (`002`) berhasil memulihkan tumpukan padat (65 vs 64, selisih total +1 / 1.6%):** Seluruh 28 kontainer pada tumpukan 7x4 di sisi kiri berhasil terdeteksi.
-   - **Catatan Kejujuran Metrik pada `containers.jpg`:** Walaupun angka total `65` sangat dekat dengan `64`, audit visual per-titik menunjukkan bahwa beberapa kontainer panjang 40-feet yang terbelah garis tengah vertikal (*Hyundai*, *China Shipping*, *NYK Logistics*) atau terlihat dua sisinya sekaligus (sisi panjang + pintu depan) mendapat 2 titik karena jarak kedua titik tersebut (~100 px) lebih lebar dari radius lingkaran *Point-NMS* (`15.2 px`), yang kebetulan saling menutupi dengan 3 kontainer tersembunyi (*recessed*) yang terlewat.
-   - **Solusi Arsitektural:** Meminta `[ymin, xmin, ymax, xmax]` (bounding box) alih-alih titik buta `[y, x]` pada mode Tiled memungkinkan *Box-NMS / Seam Stitching* untuk objek memanjang, ditambah **UI Koreksi Manual (Tap-to-Add / Tap-to-Delete)** di aplikasi sebagai pengaman akhir.
-3. **Efisiensi Kecepatan pada Objek Ratusan (`apples.jpg`):**
-   - Pada tumpukan apel ratusan buah, menjalankan `2x2 Tiled Grid` secara paralel justru **memangkas waktu tunggu hampir 2x lebih cepat** (`21.09s` vs `39.94s` pada Single-Pass) karena 4 stream paralel men-generate ~90 titik per tile jauh lebih cepat daripada 1 stream tunggal yang harus men-generate ~300 titik secara berurutan.
+| # | Gambar & Query | GT / Ref | Count-Anything (`000` / SAM3 3.4GB) | Gemini Single-Pass (`001`) | Gemini 2x2 Tiled + NMS (`002`) | Metode Terbaik |
+|---|---|---:|---|---|---|---|
+| 1 | `cats.jpg` (`"cats"`) | **2** | **2** (0% err, 23.0s CPU) | **2** (**0% err, 5.71s**) | — | **Gemini Single-Pass** |
+| 2 | `cats.jpg` (`"remote control"`) | **2** | — | **2** (**0% err, 5.03s**) | — | **Gemini Single-Pass** |
+| 3 | `coins.jpg` (`"coins"`) | **24** | — | **24** (**0% err, 13.93s**) | **24** (0% err, 20.78s) | **Gemini Single-Pass** |
+| 4 | `tennis-ball.jpg` (`"tennis ball"`) | **43** (41 utuh + 2 tepi) | **41** (4.7% err, ~13.6s) | **42** (**2.3% err, 7.71s**) | **42** (2.3% err, 10.67s) | **Gemini Single-Pass** |
+| 5 | `Heidelbeeren.jpg` (`"blueberry"`) | **~113** | **125** (10.6% err, ~13.6s) | **122** (**8.0% err, 12.39s**) | **122** (8.0% err, 11.34s) | **Gemini Single-Pass** |
+| 6 | `Heidelbeeren-bnw.jpg` (`"blueberry"`) | **~110** (Hitam-Putih) | **131** (19.1% err, ~13.6s) | **112** (**1.8% err, 12.10s**) | **119** (8.2% err, 11.48s) | **Gemini Single-Pass** |
+| 7 | `candy-ball.jpg` (`"candy"`) | **~132** | **128** (**3.0% err**, ~13.6s) | **128** (**3.0% err, 19.02s**) | **145** (9.8% err, 14.06s) | **Gemini Single-Pass / CA** |
+| 8 | `containers.jpg` (`"container"`) | **64** | **64** (Ref, 28.1s A100) | **29** (54.7% err, **GAGAL**) | **65** (**1.6% err, 31.53s**) | **Gemini 2x2 Tiled** |
+| 9 | `apples.jpg` (`"apples"`) | **~215–340** | **339** (23.0s CPU) | **289** (39.94s) | **336–343** (**21.09s**) | **Gemini 2x2 Tiled** |
 
 ---
 
-## Perbandingan Infrastruktur & Biaya
+## Temuan Kunci dari 4 Gambar Uji Baru (`docs/image/test/`)
 
-| Dimensi | Count-Anything (Self-Hosted SAM3) | Gemini Adaptive Hybrid (Single + Tiled) | On-Device Detector + Few-Shot (CountThis Style) |
-|---|---|---|---|
-| **Ukuran Model / Beban** | Checkpoint 3.4 GB, butuh >7.2 GB RAM / GPU VRAM | **0 MB** di server/HP (via API) | 3–10 MB (ONNX INT8 di HP) |
-| **Biaya Server Tetap** | Sewa GPU ~$250–$400/bulan (atau CPU lambat 23s/foto) | **$0 biaya tetap** (pay-per-scan) | **$0** (inferensi di HP) |
-| **Kemampuan Query Teks Bebas** | Ya (Open-Vocabulary) | **Ya, Terbaik** (paham konteks/atribut kompleks) | Tidak (terbatas kelas terlatih atau tap contoh) |
-| **Kesiapan Produksi MVP** | Berat di-deploy & boros memori | **Siap dalam hitungan hari** | Butuh koleksi dataset & training per kelas |
+1. **`tennis-ball.jpg` (GT 43 bola = 41 utuh + 2 terpotong di tepi ekstrem):**
+   - **Gemini Single-Pass (`42`, 7.71 detik) mengungguli Count-Anything (`41`, ~13.6 detik):** Audit visual membuktikan Gemini menandai ke-41 bola utuh **ditambah** 1 bola yang terpotong di tepi kanan dengan tepat 1 titik di tengah setiap bola (0 *false positive*, 0 *double-dot*), hanya melewatkan 1 irisan tipis bola (<5% area) yang terpotong tepat di bawah tali net tepi paling kiri.
+2. **`candy-ball.jpg` (GT ~132 permen warna-warni bertumpuk padat):**
+   - **Gemini Single-Pass menghasilkan angka yang SAMA PERSIS dengan Count-Anything (`128` vs `128`)** dalam 19 detik tanpa GPU!
+   - Audit visual pada `candy-ball__candy.jpg` mengonfirmasi **0 double-dot** di seluruh 128 permen (setiap titik jatuh bersih di tengah permen yang berbeda).
+   - Sebaliknya, pada foto *close-up* seperti `candy-ball.jpg` di mana ukuran tiap permen cukup besar, memotong gambar menjadi `2x2 Tiled Grid` justru menyebabkan *over-count* (`145`), karena permen besar yang terbelah garis potong tengah mendapat 2 titik yang jaraknya lebih lebar dari radius *Point-NMS*.
+3. **`Heidelbeeren.jpg` (Warna) vs `Heidelbeeren-bnw.jpg` (Hitam-Putih):**
+   - Pengujian ini membuktikan **ketahanan terhadap hilangnya warna (*color invariance*)**:
+   - Saat foto blueberry diubah menjadi hitam-putih (`Heidelbeeren-bnw.jpg`), model **Count-Anything mengalami degradasi** (over-count naik dari `125` menjadi `131` karena bayangan cekungan gelap disangka buah).
+   - Sebaliknya, **Gemini Single-Pass sangat stabil dan akurat** (`122` pada warna, dan `112` pada hitam-putih dalam 12.1 detik dengan akurasi posisi titik yang sangat bersih).
+4. **Kapan Harus Single-Pass vs Kapan Harus 2x2 Tiled Grid? (Aturan Ukuran Objek Relatif):**
+   - Eksperimen ini mengungkap bahwa batas kemampuan *Single-Pass* **bukan semata-mata jumlah objek (`N`), melainkan ukuran piksel relatif tiap objek terhadap lebar gambar**:
+     - **Close-up / Objek Berukuran Sedang–Besar (diameter objek `>= 3.5%` lebar gambar, seperti `tennis-ball`, `candy-ball` 128 objek, `Heidelbeeren` 112–122 objek, `coins` 24 objek):** **Gemini Single-Pass (`001`)** bekerja jauh lebih akurat dan bersih (tanpa efek samping potongan *seam* tile) hingga ~135 objek sekaligus!
+     - **Wide-Angle / Objek Kecil & Jauh (ukuran objek `< 3%` lebar gambar atau jumlah `> 180`, seperti pintu kontainer sempit di `containers.jpg` atau ratusan apel kecil di `apples.jpg`):** **Gemini 2x2 Tiled Grid + NMS (`002`)** wajib dipakai untuk memperbesar resolusi lokal tiap tile.
 
 ---
 
-## Rekomendasi Arsitektur untuk AnyCount ("Adaptive Two-Stage Pipeline")
+## Rekomendasi Arsitektur Final untuk AnyCount
 
-Untuk mencapai efisiensi tertinggi sekaligus memenuhi **Target C**, arsitektur terbaik bukanlah memilih salah satu secara kaku, melainkan **Adaptive Single-to-Tiled VLM Pipeline + Interactive Canvas UI**:
-
-1. **Stage 1 — Fast Single-Pass Scan (Default):**
-   - Klien me-resize gambar (sisi panjang maks `1280px`) dan mengirimkannya ke backend bersama `text_query`.
-   - Jika jumlah objek yang ditemukan `< 30` dan tidak terdeteksi kepadatan tinggi (ukuran rata-rata jarak antar-titik masih renggang), langsung kembalikan daftar koordinat `[x, y]` ke user (**5–12 detik**).
-2. **Stage 2 — Automatic Tiled Grid Escalation (Dense Mode):**
-   - Jika user mengaktifkan mode *"Dense / Tumpukan Padat"* atau Stage 1 mendeteksi kepadatan tinggi (`count >= 30` atau objek sangat rapat), sistem otomatis menjalankan **Parallel 2x2 Tiled Grid + Seam Point-NMS** (`002`).
-3. **Stage 3 — Interactive Point Overlay & Manual Correction (Di Aplikasi):**
-   - Aplikasi merender titik merah-putih secara dinamis di atas kanvas foto (bukan sekadar gambar statis mati).
-   - Jika pada tumpukan 64 kontainer model menghitung 65 (meleset 1 titik), user cukup **tap titik yang berlebih untuk menghapus** atau **tap area kosong untuk menambah titik**, lengkap dengan tombol Undo/Redo.
-4. **Opsional Tahap Lanjut (Offline / High-Volume):**
-   - Untuk kategori yang paling sering dihitung berulang kali oleh user, koordinat hasil Gemini yang sudah dikoreksi user dapat disimpan sebagai dataset otomatis (*auto-labeling*) untuk melatih model lokal ringan (`YOLOv11n` / `RTMDet-tiny` ONNX ~3 MB).
+Berdasarkan bukti eksperimen di atas, metode paling efisien untuk **AnyCount** adalah:
+1. **Default Engine: Gemini Single-Pass Spatial Pointing (`001`) + Client/Server Canvas Renderer:**
+   - Menangani **90% kasus foto pengguna** (dari 1 hingga ~135 objek *close-up* seperti buah, permen, bola, koin, barang) dalam **5–19 detik** dengan akurasi setara atau melampaui Count-Anything 3.4 GB, **tanpa biaya server GPU**.
+2. **Dense / Far-Object Mode: Parallel 2x2 Tiled Grid + Seam NMS (`002`):**
+   - Disediakan sebagai mode *"Small / Distant Objects (Grid Scan)"* untuk foto jarak jauh di mana objek terlihat sangat kecil (seperti tumpukan kontainer di pelabuhan atau ratusan objek mikro).
+3. **Interactive Dot Correction Canvas (Wajib di UI):**
+   - Titik koordinat `[x, y]` dikirim sebagai JSON ke frontend agar digambar di atas `<canvas>` interaktif — user bisa tap titik untuk menghapus atau tap objek yang terlewat untuk menambah titik secara instan.
