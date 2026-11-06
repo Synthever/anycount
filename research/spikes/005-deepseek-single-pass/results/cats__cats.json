@@ -1,0 +1,30 @@
+{
+  "model": "deepseek-v4.1-flash-1017",
+  "count": 2,
+  "elapsed_s": 3.2,
+  "usage": {
+    "prompt_tokens": 297,
+    "completion_tokens": 16,
+    "total_tokens": 313,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0
+    }
+  },
+  "points": [
+    {
+      "x": 166.4,
+      "y": 206.88,
+      "norm_x": 260.0,
+      "norm_y": 431.0
+    },
+    {
+      "x": 464.0,
+      "y": 208.8,
+      "norm_x": 725.0,
+      "norm_y": 435.0
+    }
+  ]
+}
