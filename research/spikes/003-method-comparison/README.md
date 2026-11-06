@@ -1,22 +1,23 @@
-# Spike 003: Side-by-Side Visual & Quantitative Comparison
+# Spike 003: Side-by-Side Visual & Quantitative Comparison (6 Metode)
 
-Folder ini berisi skrip `compare_all.py` dan 10 gambar montage perbandingan berdampingan (*side-by-side*) antara:
-1. **Count-Anything (SAM3 3.4 GB)**
-2. **Gemini 3.8 Flash — Single-Pass (`001`)**
-3. **Gemini 3.8 Flash — 2x2 Tiled Grid + Point-NMS (`002`)**
+Folder ini berisi skrip `compare_all.py` dan 11 gambar montage perbandingan berdampingan (*side-by-side*) untuk ke-6 metode yang diuji:
+- **M1:** Count-Anything (SAM3 3.4 GB)
+- **M2:** Offline ONNX Model Pack (`2.77 MB`) + LLM Validator + Auto-Retraining Flywheel (`004`)
+- **M3:** Gemini 3.8 Flash — Single-Pass (`001`)
+- **M4:** Gemini 3.8 Flash — 2x2 Tiled Grid + Point-NMS (`002`)
+- **M5:** GPT-6 Luna (`gpt-6-luna-xhigh`) — Single-Pass (`005`)
+- **M6:** GPT-6 Luna (`gpt-6-luna-xhigh`) — 2x2 Tiled Grid + Point-NMS (`006`)
 
 ## Daftar Gambar Montage (`results/`)
 
-### Sampel Awal
-1. **`results/montage_cats_and_remotes.jpg`** — Count-Anything (`2`) vs Gemini Single-Pass (`2`) vs Open-Vocab `"remote control"` (`2`).
-2. **`results/montage_coins.jpg`** — Gemini Single-Pass (`24/24`) vs Gemini 2x2 Tiled + NMS (`24/24`).
-3. **`results/montage_containers.jpg`** — Count-Anything (`64`) vs Gemini Single-Pass (`29`) vs Gemini 2x2 Tiled + NMS (`65`).
-4. **`results/montage_apples.jpg`** — Count-Anything (`339`) vs Gemini Single-Pass (`289`) vs Gemini 2x2 Tiled + NMS (`336`).
-
-### 6 Gambar Uji di `docs/image/test/`
-5. **`results/montage_tennis_ball.jpg`** — Count-Anything (`41/43`) vs Gemini Single-Pass (`42/43`, 7.7s) vs Gemini 2x2 Tiled (`42/43`, 10.7s).
-6. **`results/montage_heidelbeeren.jpg`** — Count-Anything (`125`) vs Gemini Single-Pass (`122`, 12.4s) vs Gemini 2x2 Tiled (`122`, 11.3s).
-7. **`results/montage_heidelbeeren_bnw.jpg`** — Count-Anything (`131`) vs Gemini Single-Pass (`112`, 12.1s) vs Gemini 2x2 Tiled (`119`, 11.5s).
-8. **`results/montage_heidelbeeren_bnw2.jpg`** — Count-Anything (`137`, over-count di celah bayangan karena kontras tinggi) vs Gemini Single-Pass (`128`, 14.0s) vs Gemini 2x2 Tiled (`127`, 11.0s, distribusi titik paling bersih).
-9. **`results/montage_candy_ball.jpg`** — Count-Anything (`128`) vs Gemini Single-Pass (`128`, identik tanpa double-dot) vs Gemini 2x2 Tiled (`145`).
-10. **`results/montage_candy_bnw.jpg`** — Count-Anything (`123`, ada 3 false positive di bibir mangkuk) vs Gemini Single-Pass (`116`, 12.5s, 0 false positive mangkuk tapi melewatkan ~10 permen gelap di tepi) vs Gemini 2x2 Tiled (`144`, 12.8s, paling tahan terhadap hilangnya warna).
+1. **`results/montage_cats_and_remotes.jpg`** — Perbandingan M1, M3, dan M5 pada `cats.jpg` (`"cats"` & `"remote control"`).
+2. **`results/montage_coins.jpg`** — Perbandingan M3, M4, M5, dan M6 pada `coins.jpg` (`24` koin).
+3. **`results/montage_containers.jpg`** — Perbandingan M1 (`64`), M3 (`29`), M4 (`65`), M5 (`24`), dan M6 (`64`) pada `containers.jpg`.
+4. **`results/montage_apples.jpg`** — Perbandingan M1 (`339`), M3 (`289`), M4 (`336`), M5 (`264`), dan M6 (`325`) pada `apples.jpg`.
+5. **`results/montage_tennis_ball.jpg`** — Perbandingan M1 (`41`), M3 (`42`), M4 (`42`), M5 (`83` drift), dan M6 (`41`) pada `tennis-ball.jpg`.
+6. **`results/montage_heidelbeeren.jpg`** — Perbandingan M1 (`125`), M3 (`122`), M4 (`122`), M5 (`103`), dan M6 (`117`) pada `Heidelbeeren.jpg`.
+7. **`results/montage_heidelbeeren_bnw.jpg`** — Perbandingan M1 (`131`), M3 (`112`), M4 (`119`), M5 (`133`), dan M6 (`116`) pada `Heidelbeeren-bnw.jpg`.
+8. **`results/montage_heidelbeeren_bnw2.jpg`** — Perbandingan M1 (`137`), M3 (`128`), M4 (`127`), M5 (`92`), dan M6 (`116`) pada `Heidelbeeren-bnw2.jpg`.
+9. **`results/montage_candy_ball.jpg`** — Perbandingan M1 (`128`), M3 (`128`), M4 (`145`), M5 (`102`), dan M6 (`144`) pada `candy-ball.jpg`.
+10. **`results/montage_candy_bnw.jpg`** — Perbandingan M1 (`123`), M3 (`116`), M4 (`144`), M5 (`101`), dan M6 (`112`) pada `candy-bnw.jpg`.
+11. **`results/montage_m2_offline_onnx_flywheel.jpg`** — Bukti visual peningkatan akurasi Metode 2 (`apple_int8.onnx` v1 -> LLM Validator -> Distilled `apple_v2_distilled_int8.onnx`).

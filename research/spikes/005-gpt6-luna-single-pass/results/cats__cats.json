@@ -1,0 +1,24 @@
+{
+  "model": "gpt-6-luna-xhigh",
+  "count": 2,
+  "elapsed_s": 1.73,
+  "usage": {
+    "prompt_tokens": 2971,
+    "completion_tokens": 17,
+    "total_tokens": 2988
+  },
+  "points": [
+    {
+      "x": 166.4,
+      "y": 265.92,
+      "norm_y": 554.0,
+      "norm_x": 260.0
+    },
+    {
+      "x": 480.0,
+      "y": 187.2,
+      "norm_y": 390.0,
+      "norm_x": 750.0
+    }
+  ]
+}
