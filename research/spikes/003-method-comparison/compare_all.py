@@ -5,7 +5,6 @@ Generates labeled side-by-side comparison montages in results/.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import List, Tuple
 from PIL import Image, ImageDraw, ImageFont
@@ -58,6 +57,7 @@ def make_montage(
 def main() -> None:
     repo_root = Path(__file__).resolve().parents[3]
     research_root = repo_root / "research"
+    s0_dir = research_root / "spikes" / "000-count-anything-baseline" / "results"
     s1_dir = research_root / "spikes" / "001-gemini-single-pass" / "results"
     s2_dir = research_root / "spikes" / "002-gemini-tiled-grid" / "results"
     out_dir = Path(__file__).resolve().parent / "results"
@@ -98,12 +98,49 @@ def main() -> None:
             [
                 ("Count-Anything SAM3 (count=339, 23s CPU)", ca_apples),
                 ("Gemini Single-Pass (count=289, 39.9s)", s1_dir / "apples__apples.jpg"),
-                ("Gemini 2x2 Tiled + NMS (count=343, 21.1s)", s2_dir / "apples__apples__2x2.jpg"),
+                ("Gemini 2x2 Tiled + NMS (count=336, 194.7s)", s2_dir / "apples__apples__2x2.jpg"),
             ],
             out_dir / "montage_apples.jpg",
         )
 
-    print("Generated comparison montages in:", out_dir)
+    # New 4 test images from docs/image/test/
+    make_montage(
+        [
+            ("Count-Anything SAM3 (count=41, ~13.6s)", s0_dir / "tennis-ball__tennis_ball.jpg"),
+            ("Gemini Single-Pass (count=42, 7.7s)", s1_dir / "tennis-ball__tennis_ball.jpg"),
+            ("Gemini 2x2 Tiled + NMS (count=42, 10.7s)", s2_dir / "tennis-ball__tennis_ball__2x2.jpg"),
+        ],
+        out_dir / "montage_tennis_ball.jpg",
+    )
+
+    make_montage(
+        [
+            ("Count-Anything SAM3 (count=125, ~13.6s)", s0_dir / "Heidelbeeren__blueberry.jpg"),
+            ("Gemini Single-Pass (count=122, 12.4s)", s1_dir / "Heidelbeeren__blueberry.jpg"),
+            ("Gemini 2x2 Tiled + NMS (count=122, 11.3s)", s2_dir / "Heidelbeeren__blueberry__2x2.jpg"),
+        ],
+        out_dir / "montage_heidelbeeren.jpg",
+    )
+
+    make_montage(
+        [
+            ("Count-Anything SAM3 (count=131, ~13.6s)", s0_dir / "Heidelbeeren-bnw__blueberry.jpg"),
+            ("Gemini Single-Pass (count=112, 12.1s)", s1_dir / "Heidelbeeren-bnw__blueberry.jpg"),
+            ("Gemini 2x2 Tiled + NMS (count=119, 11.5s)", s2_dir / "Heidelbeeren-bnw__blueberry__2x2.jpg"),
+        ],
+        out_dir / "montage_heidelbeeren_bnw.jpg",
+    )
+
+    make_montage(
+        [
+            ("Count-Anything SAM3 (count=128, ~13.6s)", s0_dir / "candy-ball__candy.jpg"),
+            ("Gemini Single-Pass (count=128, 19.0s)", s1_dir / "candy-ball__candy.jpg"),
+            ("Gemini 2x2 Tiled + NMS (count=145, 14.1s)", s2_dir / "candy-ball__candy__2x2.jpg"),
+        ],
+        out_dir / "montage_candy_ball.jpg",
+    )
+
+    print("Generated all 8 comparison montages in:", out_dir)
 
 
 if __name__ == "__main__":

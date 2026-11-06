@@ -126,7 +126,7 @@ def query_tile(
     t0 = time.perf_counter()
     content_parts: List[str] = []
     usage: Dict[str, Any] = {}
-    with urllib.request.urlopen(req, timeout=90) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:
         for raw_line in resp:
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line.startswith("data: "):
@@ -297,20 +297,26 @@ def run_tiled_counting(
 
 
 def main() -> None:
-    root = Path(__file__).resolve().parents[2]
-    samples_dir = root / "samples"
+    research_root = Path(__file__).resolve().parents[2]
+    repo_root = research_root.parent
+    samples_dir = research_root / "samples"
+    test_dir = repo_root / "docs" / "image" / "test"
     out_dir = Path(__file__).resolve().parent / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     tasks = [
-        ("coins.jpg", "coins", 24, 2, 2),
-        ("containers.jpg", "container", 64, 2, 2),
-        ("apples.jpg", "apples", 215, 2, 2),
+        (samples_dir / "coins.jpg", "coins", 24, 2, 2),
+        (samples_dir / "containers.jpg", "container", 64, 2, 2),
+        (samples_dir / "apples.jpg", "apples", 215, 2, 2),
+        (test_dir / "tennis-ball.jpg", "tennis ball", 43, 2, 2),
+        (test_dir / "Heidelbeeren.jpg", "blueberry", 113, 2, 2),
+        (test_dir / "Heidelbeeren-bnw.jpg", "blueberry", 110, 2, 2),
+        (test_dir / "candy-ball.jpg", "candy", 132, 2, 2),
     ]
 
     summary = []
-    for filename, query, gt, r, c in tasks:
-        img_path = samples_dir / filename
+    for img_path, query, gt, r, c in tasks:
+        filename = img_path.name
         slug = f"{img_path.stem}__{query.replace(' ', '_')}__{r}x{c}"
         out_img = out_dir / f"{slug}.jpg"
         out_json = out_dir / f"{slug}.json"
@@ -340,7 +346,7 @@ def main() -> None:
             "prompt_tokens": res["prompt_tokens"],
             "completion_tokens": res["completion_tokens"],
             "reasoning_tokens": res["reasoning_tokens"],
-            "output_image": str(out_img.relative_to(root)),
+            "output_image": str(out_img.relative_to(research_root)),
         }
         summary.append(row)
         print(

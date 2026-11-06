@@ -1,0 +1,42 @@
+[
+  {
+    "image": "tennis-ball.jpg",
+    "query": "tennis ball",
+    "gt": 43,
+    "pred_count": 41,
+    "signed_error": -2,
+    "mape_pct": 4.7,
+    "avg_elapsed_s": 13.58,
+    "output_image": "spikes/000-count-anything-baseline/results/tennis-ball__tennis_ball.jpg"
+  },
+  {
+    "image": "Heidelbeeren.jpg",
+    "query": "blueberry",
+    "gt": 113,
+    "pred_count": 125,
+    "signed_error": 12,
+    "mape_pct": 10.6,
+    "avg_elapsed_s": 13.58,
+    "output_image": "spikes/000-count-anything-baseline/results/Heidelbeeren__blueberry.jpg"
+  },
+  {
+    "image": "Heidelbeeren-bnw.jpg",
+    "query": "blueberry",
+    "gt": 110,
+    "pred_count": 131,
+    "signed_error": 21,
+    "mape_pct": 19.1,
+    "avg_elapsed_s": 13.58,
+    "output_image": "spikes/000-count-anything-baseline/results/Heidelbeeren-bnw__blueberry.jpg"
+  },
+  {
+    "image": "candy-ball.jpg",
+    "query": "candy",
+    "gt": 132,
+    "pred_count": 128,
+    "signed_error": -4,
+    "mape_pct": 3.0,
+    "avg_elapsed_s": 13.58,
+    "output_image": "spikes/000-count-anything-baseline/results/candy-ball__candy.jpg"
+  }
+]

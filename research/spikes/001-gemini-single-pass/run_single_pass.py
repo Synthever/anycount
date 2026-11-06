@@ -78,15 +78,15 @@ def call_gemini_points(image_path: Path, text_query: str) -> Dict[str, Any]:
         "Place exactly one point [y, x] at the center of each visible instance (normalized 0 to 1000, "
         "where [0,0] is top-left and [1000,1000] is bottom-right).\n"
         "Scan systematically row by row from top-left to bottom-right so you do not miss any or double-count.\n"
-        "IMPORTANT: Keep internal thinking very brief (do NOT write out coordinates in your thinking trace; "
-        "emit the coordinates directly in the final JSON response).\n"
-        "Return ONLY valid JSON with no markdown fences in this exact schema:\n"
+        "IMPORTANT: Do NOT write coordinates in your thinking trace; keep thinking under 3 sentences and "
+        "emit the coordinates directly in the final JSON response:\n"
         '{"points": [[y1, x1], [y2, x2], ...]}'
     )
 
     payload = {
         "model": MODEL,
         "reasoning_effort": "low",
+        "max_tokens": 4096,
         "messages": [
             {
                 "role": "user",
@@ -113,7 +113,7 @@ def call_gemini_points(image_path: Path, text_query: str) -> Dict[str, Any]:
     t0 = time.perf_counter()
     content_parts: List[str] = []
     usage: Dict[str, Any] = {}
-    with urllib.request.urlopen(req, timeout=180) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:
         for raw_line in resp:
             line = raw_line.decode("utf-8", errors="replace").strip()
             if not line.startswith("data: "):
@@ -164,22 +164,28 @@ def call_gemini_points(image_path: Path, text_query: str) -> Dict[str, Any]:
 
 
 def main() -> None:
-    root = Path(__file__).resolve().parents[2]
-    samples_dir = root / "samples"
+    research_root = Path(__file__).resolve().parents[2]
+    repo_root = research_root.parent
+    samples_dir = research_root / "samples"
+    test_dir = repo_root / "docs" / "image" / "test"
     out_dir = Path(__file__).resolve().parent / "results"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     tasks = [
-        ("cats.jpg", "cats", 2),
-        ("cats.jpg", "remote control", 2),
-        ("coins.jpg", "coins", 24),
-        ("containers.jpg", "container", 64),
-        ("apples.jpg", "apples", 215),
+        (samples_dir / "cats.jpg", "cats", 2),
+        (samples_dir / "cats.jpg", "remote control", 2),
+        (samples_dir / "coins.jpg", "coins", 24),
+        (samples_dir / "containers.jpg", "container", 64),
+        (samples_dir / "apples.jpg", "apples", 215),
+        (test_dir / "tennis-ball.jpg", "tennis ball", 43),
+        (test_dir / "Heidelbeeren.jpg", "blueberry", 113),
+        (test_dir / "Heidelbeeren-bnw.jpg", "blueberry", 110),
+        (test_dir / "candy-ball.jpg", "candy", 132),
     ]
 
     summary = []
-    for filename, query, gt in tasks:
-        img_path = samples_dir / filename
+    for img_path, query, gt in tasks:
+        filename = img_path.name
         slug = f"{img_path.stem}__{query.replace(' ', '_')}"
         out_img = out_dir / f"{slug}.jpg"
         out_json = out_dir / f"{slug}.json"
@@ -205,10 +211,10 @@ def main() -> None:
             "prompt_tokens": res["usage"].get("prompt_tokens", 0),
             "completion_tokens": res["usage"].get("completion_tokens", 0),
             "reasoning_tokens": (res["usage"].get("completion_tokens_details") or {}).get("reasoning_tokens", 0),
-            "output_image": str(out_img.relative_to(root)),
+            "output_image": str(out_img.relative_to(research_root)),
         }
         summary.append(row)
-        print(f"  -> count={res['count']} (err={err:+d}, MAPE={abs_pct}%), time={res['elapsed_s']}s, reasoning_tok={row['reasoning_tokens']}", flush=True)
+        print(f"  -> count={res['count']} (err={err:+d}, MAPE={abs_pct}%), time={res['elapsed_s']}s", flush=True)
 
     (out_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 

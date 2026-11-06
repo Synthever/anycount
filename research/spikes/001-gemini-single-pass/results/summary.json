@@ -63,5 +63,57 @@
     "completion_tokens": 5672,
     "reasoning_tokens": 2254,
     "output_image": "spikes/001-gemini-single-pass/results/apples__apples.jpg"
+  },
+  {
+    "image": "tennis-ball.jpg",
+    "query": "tennis ball",
+    "gt": 43,
+    "pred_count": 42,
+    "signed_error": -1,
+    "mape_pct": 2.3,
+    "elapsed_s": 7.71,
+    "prompt_tokens": 3243,
+    "completion_tokens": 470,
+    "reasoning_tokens": 44,
+    "output_image": "spikes/001-gemini-single-pass/results/tennis-ball__tennis_ball.jpg"
+  },
+  {
+    "image": "Heidelbeeren.jpg",
+    "query": "blueberry",
+    "gt": 113,
+    "pred_count": 122,
+    "signed_error": 9,
+    "mape_pct": 8.0,
+    "elapsed_s": 12.39,
+    "prompt_tokens": 3222,
+    "completion_tokens": 1232,
+    "reasoning_tokens": 35,
+    "output_image": "spikes/001-gemini-single-pass/results/Heidelbeeren__blueberry.jpg"
+  },
+  {
+    "image": "Heidelbeeren-bnw.jpg",
+    "query": "blueberry",
+    "gt": 110,
+    "pred_count": 112,
+    "signed_error": 2,
+    "mape_pct": 1.8,
+    "elapsed_s": 12.1,
+    "prompt_tokens": 3222,
+    "completion_tokens": 1207,
+    "reasoning_tokens": 105,
+    "output_image": "spikes/001-gemini-single-pass/results/Heidelbeeren-bnw__blueberry.jpg"
+  },
+  {
+    "image": "candy-ball.jpg",
+    "query": "candy",
+    "gt": 132,
+    "pred_count": 128,
+    "signed_error": -4,
+    "mape_pct": 3.0,
+    "elapsed_s": 19.02,
+    "prompt_tokens": 3206,
+    "completion_tokens": 2335,
+    "reasoning_tokens": 1063,
+    "output_image": "spikes/001-gemini-single-pass/results/candy-ball__candy.jpg"
   }
 ]
