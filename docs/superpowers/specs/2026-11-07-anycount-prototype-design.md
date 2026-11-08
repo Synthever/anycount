@@ -40,6 +40,7 @@ Sistem dibangun sebagai **Monolitik Single-Binary Rust (Axum)** yang membundel a
 prototype/
 ├── Cargo.toml                        # Crate Rust backend (axum, tokio, sqlx, reqwest, image, rust-embed)
 ├── Cargo.lock
+├── build.rs                          # Memastikan direktori web/dist ada saat cargo check/test sebelum vite build
 ├── .env.example                      # Contoh variabel lingkungan tanpa kredensial rahasia
 ├── Dockerfile                        # Multi-stage build (Node build web/ -> Rust build -> Debian slim)
 ├── compose.yml                       # Konfigurasi Docker Compose portabel
@@ -53,7 +54,9 @@ prototype/
 │   ├── ca_worker.py                  # Worker Python tipis untuk Metode 1 (Count-Anything SAM3)
 │   └── onnx_worker.py                # Worker Python untuk inferensi ONNX cepat & Auto-Train pack baru
 ├── src/
+│   ├── lib.rs                        # Deklarasi modul & builder axum::Router untuk produksi dan integration test
 │   ├── main.rs                       # Entrypoint server Axum, migrasi DB, seed sampel & pack apel
+│   ├── assets.rs                     # Handler rust-embed SPA web/dist + JSON 404 untuk /api/* tak dikenal
 │   ├── config.rs                     # Pembacaan dan validasi env vars
 │   ├── state.rs                      # AppState (SqlitePool, Semaphore(1), broadcast SSE channels)
 │   ├── error.rs                      # AppError terstruktur -> JSON HTTP response
