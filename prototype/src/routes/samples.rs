@@ -110,16 +110,16 @@ pub async fn list_samples(State(st): State<AppState>) -> Result<impl IntoRespons
         .collect();
 
     let montages = vec![
-        json!({"id": "cats", "title": "Cats & Open-Vocab Remote (GT: 2)", "url": "/api/samples/montages/montage_cats_and_remotes.jpg", "best": "M5 DeepSeek (3.2s) / M3 Gemini (5.0s)"}),
-        json!({"id": "coins", "title": "Ancient Coins 4x6 Grid (GT: 24)", "url": "/api/samples/montages/montage_coins.jpg", "best": "M5 DeepSeek (24/24, 3.1s) & M3 Gemini (24/24)"}),
-        json!({"id": "tennis", "title": "Tennis Court Balls (GT: 43)", "url": "/api/samples/montages/montage_tennis_ball.jpg", "best": "M3 Gemini Single (42/43, 7.7s)"}),
-        json!({"id": "containers", "title": "Port Shipping Containers (GT: 64)", "url": "/api/samples/montages/montage_containers.jpg", "best": "M4 Gemini 2x2 (65/64) & M6 DeepSeek 2x2 (61/64, 2.5s)"}),
-        json!({"id": "candy", "title": "Colorful Candy Pile (GT: ~132)", "url": "/api/samples/montages/montage_candy_ball.jpg", "best": "M3 Gemini Single & M1 SAM3 (128/132, 0 double-dots)"}),
-        json!({"id": "candy_bnw", "title": "Black & White Candy Ablation (GT: ~132)", "url": "/api/samples/montages/montage_candy_bnw.jpg", "best": "M6 DeepSeek 2x2 (133/132, 3.6s)"}),
-        json!({"id": "blueberry", "title": "Blueberries Color (GT: ~113)", "url": "/api/samples/montages/montage_heidelbeeren.jpg", "best": "M6 DeepSeek 2x2 (121) & M3 Gemini (122)"}),
-        json!({"id": "blueberry_bnw", "title": "Blueberries Grayscale (GT: ~113)", "url": "/api/samples/montages/montage_heidelbeeren_bnw.jpg", "best": "M3 Gemini Single (112/113, 0.9% err)"}),
-        json!({"id": "blueberry_bnw2", "title": "Blueberries High-Contrast B&W (GT: ~113)", "url": "/api/samples/montages/montage_heidelbeeren_bnw2.jpg", "best": "M4 Gemini 2x2 (127, cleanest centering)"}),
-        json!({"id": "apples", "title": "Dense Hundreds of Apples (GT: ~289-339)", "url": "/api/samples/montages/montage_apples.jpg", "best": "M2 Offline ONNX v2 (289 di GT 289, 0.54s tiled) & M6 DeepSeek 2x2 (336 in 5.6s)"}),
+        json!({"id": "cats", "title": "Cats & Open-Vocab Remote (GT: 2)", "url": "/api/samples/montages/montage_cats_and_remotes.jpg", "best": "M6 DeepSeek (3.2s) / M4 Gemini (5.0s)"}),
+        json!({"id": "coins", "title": "Ancient Coins 4x6 Grid (GT: 24)", "url": "/api/samples/montages/montage_coins.jpg", "best": "M6 DeepSeek (24/24, 3.1s) & M4 Gemini (24/24)"}),
+        json!({"id": "tennis", "title": "Tennis Court Balls (GT: 43)", "url": "/api/samples/montages/montage_tennis_ball.jpg", "best": "M4 Gemini Single (42/43, 7.7s)"}),
+        json!({"id": "containers", "title": "Port Shipping Containers (GT: 64)", "url": "/api/samples/montages/montage_containers.jpg", "best": "M5 Gemini 2x2 (65/64) & M7 DeepSeek 2x2 (61/64, 2.5s)"}),
+        json!({"id": "candy", "title": "Colorful Candy Pile (GT: ~132)", "url": "/api/samples/montages/montage_candy_ball.jpg", "best": "M4 Gemini Single & M1 SAM3 (128/132, 0 double-dots)"}),
+        json!({"id": "candy_bnw", "title": "Black & White Candy Ablation (GT: ~132)", "url": "/api/samples/montages/montage_candy_bnw.jpg", "best": "M7 DeepSeek 2x2 (133/132, 3.6s)"}),
+        json!({"id": "blueberry", "title": "Blueberries Color (GT: ~113)", "url": "/api/samples/montages/montage_heidelbeeren.jpg", "best": "M7 DeepSeek 2x2 (121) & M4 Gemini (122)"}),
+        json!({"id": "blueberry_bnw", "title": "Blueberries Grayscale (GT: ~113)", "url": "/api/samples/montages/montage_heidelbeeren_bnw.jpg", "best": "M4 Gemini Single (112/113, 0.9% err)"}),
+        json!({"id": "blueberry_bnw2", "title": "Blueberries High-Contrast B&W (GT: ~113)", "url": "/api/samples/montages/montage_heidelbeeren_bnw2.jpg", "best": "M5 Gemini 2x2 (127, cleanest centering)"}),
+        json!({"id": "apples", "title": "Dense Hundreds of Apples (GT: ~289-339)", "url": "/api/samples/montages/montage_apples.jpg", "best": "M3 Offline ONNX v2 (289 di GT 289, 0.54s tiled) & M7 DeepSeek 2x2 (336 in 5.6s)"}),
         json!({"id": "m2_flywheel", "title": "Metode 2 Active Learning Flywheel (Apple v1 -> LLM -> v2)", "url": "/api/samples/montages/montage_m2_flywheel_apple_val_2.jpg", "best": "Error dropped from 77.7% to 2.33% (0.54s tiled offline)"}),
     ];
 

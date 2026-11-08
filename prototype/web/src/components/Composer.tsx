@@ -11,12 +11,13 @@ import {
 import { SamplePreset } from "../api/client";
 
 const ALL_METHODS = [
-  { id: "m1", label: "M1 · SAM3 (3.4GB)" },
-  { id: "m2", label: "M2 · Offline ONNX" },
-  { id: "m3", label: "M3 · Gemini Single" },
-  { id: "m4", label: "M4 · Gemini 2x2" },
-  { id: "m5", label: "M5 · DeepSeek Single" },
-  { id: "m6", label: "M6 · DeepSeek 2x2" },
+  { id: "m1", label: "M1 SAM3" },
+  { id: "m2", label: "M2 ONNX" },
+  { id: "m3", label: "M3 ONNX 2x2" },
+  { id: "m4", label: "M4 Gemini" },
+  { id: "m5", label: "M5 Gemini 2x2" },
+  { id: "m6", label: "M6 DeepSeek" },
+  { id: "m7", label: "M7 DeepSeek 2x2" },
 ];
 
 interface ComposerProps {
@@ -97,14 +98,14 @@ export const Composer: React.FC<ComposerProps> = ({
       onPaste={handlePaste}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
-      className="sticky bottom-4 z-20 mx-auto w-full max-w-5xl rounded-2xl p-3.5 shadow-2xl transition-all"
+      className="mx-auto w-full max-w-5xl rounded-2xl p-3.5 shadow-2xl transition-all"
       style={{
         backgroundColor: "var(--surface-composer)",
         border: "1px solid var(--hairline-strong)",
       }}
     >
       {/* Row 1: Quick Sample Chips */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-2.5 mb-2.5"
+      <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hidden pb-2.5 mb-2.5"
         style={{ borderBottom: "1px solid var(--hairline)" }}
       >
         <span
@@ -237,7 +238,7 @@ export const Composer: React.FC<ComposerProps> = ({
               type="button"
               onClick={() => {
                 onToggleCompareMode(false);
-                onChangeMethods([selectedMethods[0] || "m3"]);
+                onChangeMethods([selectedMethods[0] || "m4"]);
               }}
               className="px-2 py-1 rounded-md text-[11px] font-medium cursor-pointer"
               style={
@@ -256,7 +257,7 @@ export const Composer: React.FC<ComposerProps> = ({
               onClick={() => {
                 onToggleCompareMode(true);
                 if (selectedMethods.length < 2) {
-                  onChangeMethods(["m2", "m3", "m6"]);
+                  onChangeMethods(["m2", "m4", "m7"]);
                 }
               }}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium cursor-pointer"
@@ -315,7 +316,7 @@ export const Composer: React.FC<ComposerProps> = ({
             type="button"
             onClick={() => {
               onToggleCompareMode(true);
-              onChangeMethods(["m2", "m3", "m6"]);
+              onChangeMethods(["m2", "m4", "m7"]);
             }}
             className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium cursor-pointer"
             style={{
@@ -325,14 +326,14 @@ export const Composer: React.FC<ComposerProps> = ({
             }}
           >
             <Sparkles className="w-3 h-3" />
-            <span>Fast Compare (M2+M3+M6)</span>
+            <span>Fast Compare (M2+M4+M7)</span>
           </button>
 
           <button
             type="button"
             onClick={() => {
               onToggleCompareMode(true);
-              onChangeMethods(["m1", "m2", "m3", "m4", "m5", "m6"]);
+              onChangeMethods(["m1", "m2", "m3", "m4", "m5", "m6", "m7"]);
             }}
             className="px-2 py-1 rounded-lg text-[11px] font-medium cursor-pointer"
             style={{
@@ -341,7 +342,7 @@ export const Composer: React.FC<ComposerProps> = ({
               color: "var(--body-text)",
             }}
           >
-            All 6 Methods
+            All 7 Methods
           </button>
         </div>
       </div>

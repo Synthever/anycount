@@ -31,7 +31,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
 }) => {
   const [samples, setSamples] = useState<SamplePreset[]>([]);
   const [selectedImageId, setSelectedImageId] = useState<string>("sample_apples");
-  const [selectedImageLabel, setSelectedImageLabel] = useState<string>("apples.jpg");
+  const [selectedImageLabel, setSelectedImageLabel] = useState<string>("Upload gambar");
   const [selectedImageUrl, setSelectedImageUrl] = useState<string>(
     "/api/images/sample_apples/raw"
   );
@@ -43,7 +43,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
   const [query, setQuery] = useState<string>("apples");
 
   const [compareMode, setCompareMode] = useState<boolean>(true);
-  const [selectedMethods, setSelectedMethods] = useState<string[]>(["m2", "m3", "m6"]);
+  const [selectedMethods, setSelectedMethods] = useState<string[]>(["m2", "m4", "m7"]);
 
   const [activeRun, setActiveRun] = useState<RunDetail | null>(null);
   const [recentRuns, setRecentRuns] = useState<RunDetail[]>([]);
@@ -71,7 +71,8 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
           res.samples.find((s) => s.id === "sample_apples") || res.samples[0];
         if (def) {
           setSelectedImageId(def.id);
-          setSelectedImageLabel(def.filename);
+          // Keep the neutral upload label: only a picked file or a picked
+          // sample preset should change what the composer button says.
           setSelectedImageUrl(def.url);
           setSelectedImageDim({ w: def.width, h: def.height });
           setGroundTruth(def.groundTruth);
@@ -131,7 +132,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
 
   const handleSelectSample = (sample: SamplePreset) => {
     setSelectedImageId(sample.id);
-    setSelectedImageLabel(sample.filename);
+    setSelectedImageLabel(sample.filename.replace(/\.jpg$/i, ""));
     setSelectedImageUrl(sample.url);
     setSelectedImageDim({ w: sample.width, h: sample.height });
     setGroundTruth(sample.groundTruth);
@@ -149,7 +150,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
     try {
       const uploaded = await api.uploadImage(file);
       setSelectedImageId(uploaded.id);
-      setSelectedImageLabel(uploaded.filename);
+      setSelectedImageLabel(file.name);
       setSelectedImageUrl(uploaded.url);
       setSelectedImageDim({ w: uploaded.width, h: uploaded.height });
       setGroundTruth(null);
@@ -223,9 +224,9 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
     startRunWithMethods(selectedImageId, query, selectedMethods);
   };
 
-  const handleRunValidatorM3 = (run: RunDetail) => {
+  const handleRunValidatorM4 = (run: RunDetail) => {
     const nextMethods = Array.from(
-      new Set([...run.methods.map((m) => m.methodId), "m3"])
+      new Set([...run.methods.map((m) => m.methodId), "m4"])
     );
     setCompareMode(nextMethods.length > 1);
     setSelectedMethods(nextMethods);
@@ -240,13 +241,13 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
     setTrainingPack(true);
     setBanner({
       type: "info",
-      text: `Memulai Distillation Flywheel (Guru Gemini M3 -> YOLO11n INT8 .onnx) untuk objek "${run.query}"...`,
+      text: `Memulai Distillation Flywheel (Guru Gemini 2x2 M5 -> YOLO11n INT8 .onnx) untuk objek "${run.query}"...`,
     });
     try {
       const res = await api.trainPack(run.imageId, run.query);
       setBanner({
         type: "success",
-        text: `Job Auto-Train pack "${res.slug}_int8.onnx" sedang berjalan di background! Cek halaman Model Packs (.onnx) untuk memantau status ready.`,
+        text: `Job Auto-Train pack "${res.slug}_int8.onnx" sedang berjalan di background! Status pack tampil di kartu Offline ONNX Engine pada sidebar.`,
       });
       onPacksChanged?.();
     } catch (err) {
@@ -430,7 +431,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
                 imageWidth={activeRun.imageWidth}
                 imageHeight={activeRun.imageHeight}
                 query={activeRun.query}
-                onRunValidatorM3={() => handleRunValidatorM3(activeRun)}
+                onRunValidatorM4={() => handleRunValidatorM4(activeRun)}
                 onAutoTrainPack={() => handleAutoTrainPack(activeRun)}
                 onRetryMethod={handleRetryMethod}
                 trainingPack={trainingPack}
@@ -454,7 +455,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
             <div className="space-y-1.5">
               <div className="inline-flex items-center gap-1.5 text-sm font-semibold">
                 <Sparkles className="w-4 h-4" style={{ color: "var(--brand-pink)" }} />
-                <span>Siap Menguji 6 Metode Penghitung Objek AnyCount</span>
+                <span>Siap Menguji 7 Metode Penghitung Objek AnyCount</span>
               </div>
               <p className="text-xs max-w-xl mx-auto leading-relaxed" style={{ color: "var(--muted-text)" }}>
                 Pilih chip sampel di bawah (mis. <code>apples</code>, <code>coins</code>,{" "}
@@ -561,7 +562,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
         </div>
       )}
 
-      {/* Floating Bottom Composer */}
+      {/* Composer (normal flow, no sticky overlay) */}
       <Composer
         samples={samples}
         selectedImageId={selectedImageId}

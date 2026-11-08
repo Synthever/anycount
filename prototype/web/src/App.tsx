@@ -1,18 +1,14 @@
 import React, { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { api } from "./api/client";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { PasscodeModal } from "./components/PasscodeModal";
 import { PlaygroundPage } from "./pages/PlaygroundPage";
 import { BenchmarkPage } from "./pages/BenchmarkPage";
-import { ModelPacksPage } from "./pages/ModelPacksPage";
-import { DocsGlossaryPage } from "./pages/DocsGlossaryPage";
 
 function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/benchmark")) return "Benchmark Gallery";
-  if (pathname.startsWith("/packs")) return "Model Packs (.onnx)";
-  if (pathname.startsWith("/docs")) return "Method Docs & Glossary";
   return "Playground";
 }
 
@@ -122,17 +118,11 @@ const StudioLayout: React.FC = () => {
             />
             <Route path="/benchmark" element={<BenchmarkPage />} />
             <Route path="/benchmarks" element={<BenchmarkPage />} />
-            <Route
-              path="/packs"
-              element={
-                <ModelPacksPage
-                  unlocked={unlocked}
-                  onRequireUnlock={() => setUnlockModalOpen(true)}
-                  onPacksChanged={(c) => setPackCount(c)}
-                />
-              }
-            />
-            <Route path="/docs" element={<DocsGlossaryPage />} />
+            {/* The ModelPacksPage/DocsGlossaryPage modules stay in src/ for
+                reference, but are no longer routed: both legacy paths land on
+                the Playground instead. */}
+            <Route path="/packs" element={<Navigate to="/" replace />} />
+            <Route path="/docs" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
       </div>

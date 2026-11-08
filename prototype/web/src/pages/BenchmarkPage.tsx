@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BarChart3, Maximize2, X, Award, Zap, Cpu } from "lucide-react";
+import { Maximize2, X } from "lucide-react";
 import { api, MontageItem } from "../api/client";
 
 interface BenchmarkRow {
@@ -12,6 +12,7 @@ interface BenchmarkRow {
   m4: string;
   m5: string;
   m6: string;
+  m7: string;
   winner: string;
 }
 
@@ -21,120 +22,130 @@ const BENCHMARK_TABLE: BenchmarkRow[] = [
     query: "cats",
     gt: "2",
     m1: "2 (23.0s)",
-    m2: "Cold -> M3",
-    m3: "2 (5.71s)",
-    m4: "2 (8.4s)",
-    m5: "2 (3.20s)",
-    m6: "2 (2.9s)",
-    winner: "M5 / M3 / M1",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "2 (5.71s)",
+    m5: "2 (8.4s)",
+    m6: "2 (3.20s)",
+    m7: "2 (2.9s)",
+    winner: "M6 / M4 / M1",
   },
   {
     scenario: "coins.jpg",
     query: "coins",
     gt: "24",
     m1: "24 (18.2s)",
-    m2: "Cold -> M3",
-    m3: "24 (13.93s)",
-    m4: "24 (20.78s)",
-    m5: "24 (3.13s)",
-    m6: "25 (2.83s)",
-    winner: "M5 / M3",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "24 (13.93s)",
+    m5: "24 (20.78s)",
+    m6: "24 (3.13s)",
+    m7: "25 (2.83s)",
+    winner: "M6 / M4",
   },
   {
     scenario: "tennis-ball.jpg",
     query: "tennis ball",
     gt: "43",
     m1: "41 (13.6s)",
-    m2: "Cold -> M3",
-    m3: "42 (7.71s)",
-    m4: "42 (10.67s)",
-    m5: "40 (3.91s)",
-    m6: "40 (3.45s)",
-    winner: "M3 (97.7%)",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "42 (7.71s)",
+    m5: "42 (10.67s)",
+    m6: "40 (3.91s)",
+    m7: "40 (3.45s)",
+    winner: "M4 (97.7%)",
   },
   {
     scenario: "containers.jpg",
     query: "container",
     gt: "64",
     m1: "64 (28.1s)",
-    m2: "Cold -> M4",
-    m3: "29 (54.7% err)",
-    m4: "65 (31.53s)",
-    m5: "69 (2.92s)",
-    m6: "61 (2.47s)",
-    winner: "M4 / M6 / M1",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "29 (54.7% err)",
+    m5: "65 (31.53s)",
+    m6: "69 (2.92s)",
+    m7: "61 (2.47s)",
+    winner: "M5 / M7 / M1",
   },
   {
     scenario: "Heidelbeeren.jpg",
     query: "blueberry (Color)",
     gt: "~113",
     m1: "125 (13.6s)",
-    m2: "Cold -> M3",
-    m3: "122 (12.39s)",
-    m4: "122 (11.34s)",
-    m5: "124 (4.10s)",
-    m6: "121 (3.10s)",
-    winner: "M6 / M3",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "122 (12.39s)",
+    m5: "122 (11.34s)",
+    m6: "124 (4.10s)",
+    m7: "121 (3.10s)",
+    winner: "M7 / M4",
   },
   {
     scenario: "Heidelbeeren-bnw.jpg",
     query: "blueberry (Grayscale)",
     gt: "~113",
     m1: "131 (13.6s)",
-    m2: "Cold -> M3",
-    m3: "112 (12.10s)",
-    m4: "119 (11.48s)",
-    m5: "99 (5.12s)",
-    m6: "121 (3.88s)",
-    winner: "M3 (0.9% err)",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "112 (12.10s)",
+    m5: "119 (11.48s)",
+    m6: "99 (5.12s)",
+    m7: "121 (3.88s)",
+    winner: "M4 (0.9% err)",
   },
   {
     scenario: "Heidelbeeren-bnw2.jpg",
     query: "blueberry (High-Contrast)",
     gt: "~113",
     m1: "137 (16.6s)",
-    m2: "Cold -> M4",
-    m3: "128 (13.99s)",
-    m4: "127 (10.98s)",
-    m5: "105 (5.70s)",
-    m6: "128 (4.45s)",
-    winner: "M4 / M6",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "128 (13.99s)",
+    m5: "127 (10.98s)",
+    m6: "105 (5.70s)",
+    m7: "128 (4.45s)",
+    winner: "M5 / M7",
   },
   {
     scenario: "candy-ball.jpg",
     query: "candy (Color)",
     gt: "~132",
     m1: "128 (13.6s)",
-    m2: "Cold -> M3",
-    m3: "128 (19.02s)",
-    m4: "145 (14.06s)",
-    m5: "99 (3.88s)",
-    m6: "142 (4.70s)",
-    winner: "M3 / M1 (0 double)",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "128 (19.02s)",
+    m5: "145 (14.06s)",
+    m6: "99 (3.88s)",
+    m7: "142 (4.70s)",
+    winner: "M4 / M1 (0 double)",
   },
   {
     scenario: "candy-bnw.jpg",
     query: "candy (B&W)",
     gt: "~132",
     m1: "123 (14.1s)",
-    m2: "Cold -> M6",
-    m3: "116 (12.49s)",
-    m4: "144 (12.84s)",
-    m5: "132 (5.27s)",
-    m6: "133 (3.64s)",
-    winner: "M6 (0.8% err)",
+    m2: "Cold start",
+    m3: "Cold start",
+    m4: "116 (12.49s)",
+    m5: "144 (12.84s)",
+    m6: "132 (5.27s)",
+    m7: "133 (3.64s)",
+    winner: "M7 (0.8% err)",
   },
   {
     scenario: "apples.jpg",
     query: "apples (Dense Pile)",
     gt: "289",
     m1: "339 (23.0s)",
-    m2: "289 (0.54s 2x2)",
-    m3: "289 (39.94s)",
-    m4: "336 (21.09s)",
-    m5: "825 (loop)",
-    m6: "336 (5.60s)",
-    winner: "M2 (0.54s tiled) & M6 (5.6s)",
+    m2: "324 (0.15s single)",
+    m3: "289 (0.54s 2x2)",
+    m4: "289 (39.94s)",
+    m5: "336 (21.09s)",
+    m6: "825 (loop)",
+    m7: "336 (5.60s)",
+    winner: "M3 (0%) & M7 (5.6s)",
   },
 ];
 
@@ -151,79 +162,17 @@ export const BenchmarkPage: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 space-y-8">
-      {/* Header & Executive KPI Cards */}
-      <div className="space-y-4">
-        <div>
-          <div className="inline-flex items-center gap-2 text-xs font-mono-tech uppercase tracking-wider mb-1"
-            style={{ color: "var(--brand-pink)" }}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            <span>Spike 000–006 Quantitative & Visual Audit</span>
-          </div>
-          <h1 className="text-2xl font-semibold display-head">
-            Benchmark Gallery — 6 Counting Methods Across 10 Test Images
-          </h1>
-          <p className="text-xs mt-1 max-w-3xl leading-relaxed" style={{ color: "var(--muted-text)" }}>
-            Arsip benchmark riset (Spike 000–006) dari repositori riset AnyCount. Angka pada tabel di bawah adalah
-            data riset historis, bukan perilaku prototype saat ini: M2 prototype terukur 289/289 apel
-            (MAPE 0% pada satu sampel) dengan 0.15 s untuk foto jarang dan 0.54 s untuk foto padat (mode 2x2 tiled).
-            Klik gambar montage untuk memperbesar dan memeriksa penempatan titik per objek.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div
-            className="rounded-2xl p-4 space-y-1.5"
-            style={{
-              backgroundColor: "var(--surface-card)",
-              border: "1px solid var(--hairline-strong)",
-            }}
-          >
-            <div className="flex items-center justify-between text-xs font-mono-tech">
-              <span style={{ color: "var(--brand-emerald)" }}>M2 · OFFLINE ONNX v2</span>
-              <Cpu className="w-4 h-4" style={{ color: "var(--brand-emerald)" }} />
-            </div>
-            <div className="text-xl font-bold font-mono-tech">0.15s sparse · 0.54s dense · 0% MAPE</div>
-            <p className="text-[11px]" style={{ color: "var(--muted-text)" }}>
-              Paket model <code>apple_v2_distilled_int8.onnx</code> (2.89 MB) menghitung 289 apel dari GT 289
-              (MAPE 0% pada satu sampel uji) dalam 0.54 s mode 2x2 tiled, tanpa internet dan biaya server Rp 0.
-            </p>
-          </div>
-
-          <div
-            className="rounded-2xl p-4 space-y-1.5"
-            style={{
-              backgroundColor: "var(--surface-card)",
-              border: "1px solid var(--hairline-strong)",
-            }}
-          >
-            <div className="flex items-center justify-between text-xs font-mono-tech">
-              <span style={{ color: "var(--brand-pink)" }}>M3 & M4 · GEMINI 3.8 FLASH</span>
-              <Award className="w-4 h-4" style={{ color: "var(--brand-pink)" }} />
-            </div>
-            <div className="text-xl font-bold font-mono-tech">Best Per-Instance Grounding</div>
-            <p className="text-[11px]" style={{ color: "var(--muted-text)" }}>
-              Posisi titik [y, x] paling jujur di pusat tiap benda pada tumpukan &gt;100 objek; menjadi Guru Validator terbaik untuk Auto-Train Metode 2.
-            </p>
-          </div>
-
-          <div
-            className="rounded-2xl p-4 space-y-1.5"
-            style={{
-              backgroundColor: "var(--surface-card)",
-              border: "1px solid var(--hairline-strong)",
-            }}
-          >
-            <div className="flex items-center justify-between text-xs font-mono-tech">
-              <span style={{ color: "var(--brand-lavender)" }}>M6 · DEEPSEEK V4.1 2x2 TILED</span>
-              <Zap className="w-4 h-4" style={{ color: "var(--brand-lavender)" }} />
-            </div>
-            <div className="text-xl font-bold font-mono-tech">Avg 3.79s · Fastest Cloud</div>
-            <p className="text-[11px]" style={{ color: "var(--muted-text)" }}>
-              Pembagian petak 2×2 paralel + Adaptive Point-NMS menghilangkan gejala loop pada 336 apel (5.60s) dan mencapai 0.8% error pada candy-bnw.
-            </p>
-          </div>
-        </div>
+      {/* Page header (the spike audit KPI strip was retired) */}
+      <div>
+        <h1 className="text-2xl font-semibold display-head">
+          Benchmark Gallery — 7 Counting Methods Across 10 Test Images
+        </h1>
+        <p className="text-xs mt-1 max-w-3xl leading-relaxed" style={{ color: "var(--muted-text)" }}>
+          Arsip benchmark riset (Spike 000–006) dari repositori riset AnyCount. Angka pada tabel di bawah adalah
+          data riset historis, bukan perilaku prototype saat ini: M3 prototype terukur 289/289 apel
+          (MAPE 0% pada satu sampel) dalam 0.54 s mode 2x2 tiled, sedangkan M2 single-pass terukur 324 titik
+          (+12.1% dari GT) dalam ~0.15 s. Klik gambar montage untuk memperbesar dan memeriksa penempatan titik per objek.
+        </p>
       </div>
 
       {/* Summary Metrics Table */}
@@ -239,11 +188,11 @@ export const BenchmarkPage: React.FC = () => {
           style={{ borderBottom: "1px solid var(--hairline)" }}
         >
           <span className="text-xs font-semibold">
-            Tabel Perbandingan Kuantitatif 6 Metode pada 10 Gambar Uji
+            Tabel Perbandingan Kuantitatif 7 Metode pada 10 Gambar Uji
             <span
               className="ml-2 font-mono-tech text-[10px] uppercase px-1.5 py-0.5 rounded"
               style={{ backgroundColor: "var(--surface-strong)", color: "var(--muted-text)" }}
-              title="Angka 0.21 s / 290 apel / 2.33% MAPE adalah arsip riset pra-prototype; prototype terukur 289/289 pada 0.54 s tiled."
+              title="Angka 0.21 s / 290 apel / 2.33% MAPE adalah arsip riset pra-prototype; prototype terukur 324 titik (M2 single) dan 289/289 pada 0.54 s tiled (M3)."
             >
               Data riset historis
             </span>
@@ -267,11 +216,12 @@ export const BenchmarkPage: React.FC = () => {
                 <th className="py-2.5 px-3">Scenario</th>
                 <th className="py-2.5 px-3">GT</th>
                 <th className="py-2.5 px-3">M1 SAM3</th>
-                <th className="py-2.5 px-3">M2 ONNX</th>
-                <th className="py-2.5 px-3">M3 Gemini 1x</th>
-                <th className="py-2.5 px-3">M4 Gemini 2x2</th>
-                <th className="py-2.5 px-3">M5 DeepSeek 1x</th>
-                <th className="py-2.5 px-3">M6 DeepSeek 2x2</th>
+                <th className="py-2.5 px-3">M2 ONNX 1x</th>
+                <th className="py-2.5 px-3">M3 ONNX 2x2</th>
+                <th className="py-2.5 px-3">M4 Gemini 1x</th>
+                <th className="py-2.5 px-3">M5 Gemini 2x2</th>
+                <th className="py-2.5 px-3">M6 DeepSeek 1x</th>
+                <th className="py-2.5 px-3">M7 DeepSeek 2x2</th>
                 <th className="py-2.5 px-3">Best Method</th>
               </tr>
             </thead>
@@ -296,6 +246,7 @@ export const BenchmarkPage: React.FC = () => {
                   <td className="py-2.5 px-3">{row.m4}</td>
                   <td className="py-2.5 px-3">{row.m5}</td>
                   <td className="py-2.5 px-3">{row.m6}</td>
+                  <td className="py-2.5 px-3">{row.m7}</td>
                   <td className="py-2.5 px-3 font-semibold" style={{ color: "var(--brand-lavender)" }}>
                     {row.winner}
                   </td>

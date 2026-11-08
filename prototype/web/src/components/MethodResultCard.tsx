@@ -16,43 +16,56 @@ import { InteractiveCanvas } from "./InteractiveCanvas";
 
 export const METHOD_CATALOG: Record<
   MethodResult["methodId"],
-  { code: string; name: string; short: string; accent: string }
+  { code: string; name: string; short: string; accent: string; fg: string }
 > = {
   m1: {
     code: "M1",
     name: "Count-Anything (SAM3 3.4 GB)",
     short: "SAM3 Heavy Baseline",
     accent: "var(--brand-ochre)",
+    fg: "#0a0a0a",
   },
   m2: {
     code: "M2",
-    name: "Offline ONNX Pack + LLM Validator",
-    short: "2.89 MB INT8 On-Device",
+    name: "Offline ONNX Pack Single-Pass (640)",
+    short: "2.89 MB INT8 · Single 640",
     accent: "var(--brand-mint)",
+    fg: "#0a0a0a",
   },
   m3: {
     code: "M3",
-    name: "Gemini 3.8 Flash Single-Pass",
-    short: "Best Instance Grounding",
-    accent: "var(--brand-pink)",
+    name: "Offline ONNX Pack 2x2 Tiled + NMS",
+    short: "2.89 MB INT8 · Always 2x2 Tiled",
+    accent: "var(--brand-teal)",
+    fg: "#fffaf0",
   },
   m4: {
     code: "M4",
-    name: "Gemini 3.8 Flash 2x2 Tiled + NMS",
-    short: "High-Detail Dense 2x2",
-    accent: "var(--brand-lavender)",
+    name: "Gemini 3.8 Flash Single-Pass",
+    short: "Best Instance Grounding",
+    accent: "var(--brand-pink)",
+    fg: "#0a0a0a",
   },
   m5: {
     code: "M5",
-    name: "DeepSeek V4.1 Flash Single-Pass",
-    short: "Fast Count-Then-Locate",
-    accent: "var(--brand-peach)",
+    name: "Gemini 3.8 Flash 2x2 Tiled + NMS",
+    short: "High-Detail Dense 2x2",
+    accent: "var(--brand-lavender)",
+    fg: "#0a0a0a",
   },
   m6: {
     code: "M6",
+    name: "DeepSeek V4.1 Flash Single-Pass",
+    short: "Fast Count-Then-Locate",
+    accent: "var(--brand-peach)",
+    fg: "#0a0a0a",
+  },
+  m7: {
+    code: "M7",
     name: "DeepSeek V4.1 Flash 2x2 Tiled + NMS",
     short: "Fastest Dense Cloud",
     accent: "var(--brand-emerald)",
+    fg: "#0a0a0a",
   },
 };
 
@@ -63,7 +76,7 @@ interface MethodResultCardProps {
   imageWidth: number;
   imageHeight: number;
   query: string;
-  onRunValidatorM3?: () => void;
+  onRunValidatorM4?: () => void;
   onAutoTrainPack?: () => void;
   onRetryMethod?: (methodId: MethodResult["methodId"]) => void;
   trainingPack?: boolean;
@@ -76,7 +89,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
   imageWidth,
   imageHeight,
   query,
-  onRunValidatorM3,
+  onRunValidatorM4,
   onAutoTrainPack,
   onRetryMethod,
   trainingPack = false,
@@ -103,6 +116,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
     name: result.methodId,
     short: "",
     accent: "var(--brand-lavender)",
+    fg: "#0a0a0a",
   };
 
   const elapsedSec =
@@ -132,7 +146,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
             className="font-mono-tech text-xs font-bold px-2 py-0.5 rounded-md shrink-0"
             style={{
               backgroundColor: info.accent,
-              color: "#0a0a0a",
+              color: info.fg,
             }}
           >
             {info.code}
@@ -339,7 +353,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
                   color: "#0a0a0a",
                 }}
               >
-                M2
+                {info.code}
               </div>
               <div className="space-y-1">
                 <div className="text-sm font-semibold" style={{ color: "var(--ink)" }}>
@@ -350,9 +364,9 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
                     result.meta?.message ||
                       `Model pack .onnx untuk '${query}' belum dilatih di katalog offline.`
                   )}{" "}
-                  Pada arsitektur Metode 2, objek baru ditangani oleh{" "}
-                  <strong>LLM Validator (M3)</strong> terlebih dahulu atau langsung memicu{" "}
-                  <strong>Distillation Flywheel</strong> untuk melatih pack INT8{" "}
+                  Pada arsitektur Metode 2/3, objek baru ditangani oleh{" "}
+                  <strong>LLM Validator (M4)</strong> terlebih dahulu atau langsung memicu{" "}
+                  <strong>Distillation Flywheel</strong> (guru Gemini 2x2, M5) untuk melatih pack INT8{" "}
                   <code>.onnx</code> (~2.89 MB) secara otomatis.
                 </p>
               </div>
@@ -361,7 +375,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
             <div className="flex flex-wrap items-center gap-2.5 pt-1">
               <button
                 type="button"
-                onClick={onRunValidatorM3}
+                onClick={onRunValidatorM4}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer"
                 style={{
                   backgroundColor: "var(--brand-pink)",
@@ -369,7 +383,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
                 }}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Run LLM Validator (M3)</span>
+                <span>Run LLM Validator (M4)</span>
               </button>
 
               <button
@@ -430,8 +444,8 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
               }}
             />
 
-            {result.methodId === "m2" &&
-              onRunValidatorM3 &&
+            {(result.methodId === "m2" || result.methodId === "m3") &&
+              onRunValidatorM4 &&
               Boolean(result.meta?.packSlug || result.meta?.mode) && (
               <div className="flex items-center justify-between px-3 py-2 rounded-xl text-xs"
                 style={{
@@ -449,7 +463,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={onRunValidatorM3}
+                  onClick={onRunValidatorM4}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold cursor-pointer"
                   style={{
                     backgroundColor: "var(--surface-strong)",
@@ -457,7 +471,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
                   }}
                 >
                   <Sparkles className="w-3 h-3" style={{ color: "var(--brand-pink)" }} />
-                  <span>Validate with LLM (M3)</span>
+                  <span>Validate with LLM (M4)</span>
                 </button>
               </div>
             )}

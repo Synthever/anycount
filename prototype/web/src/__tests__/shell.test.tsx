@@ -23,7 +23,7 @@ Object.defineProperty(window, "localStorage", {
 });
 
 describe("AnyCount Studio Shell", () => {
-  it("renders all 4 navigation destinations and toggles dark/cream theme", () => {
+  it("renders only the Playground and Benchmark destinations and toggles dark/cream theme", () => {
     document.documentElement.classList.add("dark");
     const onToggleTheme = vi.fn(() => {
       document.documentElement.classList.toggle("dark");
@@ -46,8 +46,10 @@ describe("AnyCount Studio Shell", () => {
     expect(screen.getByText("AnyCount Studio")).toBeTruthy();
     expect(screen.getAllByText("Playground").length).toBeGreaterThan(0);
     expect(screen.getByText("Benchmark Gallery")).toBeTruthy();
-    expect(screen.getByText("Model Packs (.onnx)")).toBeTruthy();
-    expect(screen.getByText("Method Docs & Glossary")).toBeTruthy();
+    expect(screen.queryByText("Model Packs (.onnx)")).toBeNull();
+    expect(screen.queryByText("Method Docs & Glossary")).toBeNull();
+    expect(screen.getByText("7 Counting Methods")).toBeTruthy();
+    expect(screen.getByText("M1–M7")).toBeTruthy();
 
     const themeBtn = screen.getByRole("button", { name: /theme/i });
     fireEvent.click(themeBtn);

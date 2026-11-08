@@ -1,13 +1,6 @@
 import React from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import {
-  Sparkles,
-  BarChart3,
-  Cpu,
-  BookOpen,
-  CheckCircle2,
-  ArrowUpRight,
-} from "lucide-react";
+import { NavLink } from "react-router-dom";
+import { Sparkles, BarChart3, CheckCircle2 } from "lucide-react";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -23,19 +16,9 @@ const NAV_GROUPS = [
     group: "BENCHMARK",
     items: [{ to: "/benchmark", label: "Benchmark Gallery", icon: BarChart3 }],
   },
-  {
-    group: "ENGINE",
-    items: [{ to: "/packs", label: "Model Packs (.onnx)", icon: Cpu }],
-  },
-  {
-    group: "REFERENCE",
-    items: [{ to: "/docs", label: "Method Docs & Glossary", icon: BookOpen }],
-  },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed, packCount }) => {
-  const navigate = useNavigate();
-
   if (collapsed) {
     return null;
   }
@@ -107,18 +90,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, packCount }) => {
           >
             apple · 2.89 MB Ready
           </div>
-          <button
-            type="button"
-            onClick={() => navigate("/packs")}
-            className="mt-2 w-full flex items-center justify-between text-[11px] font-medium px-2 py-1 rounded-md cursor-pointer transition-opacity hover:opacity-90"
-            style={{
-              backgroundColor: "var(--surface-strong)",
-              color: "var(--ink)",
-            }}
-          >
-            <span>Manage INT8 Packs</span>
-            <ArrowUpRight className="w-3 h-3" />
-          </button>
         </div>
 
         {/* Navigation Groups */}
@@ -169,8 +140,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, packCount }) => {
         }}
       >
         <div className="flex items-center justify-between font-mono-tech">
-          <span>6 Counting Methods</span>
-          <span>M1–M6</span>
+          <span>7 Counting Methods</span>
+          <span>M1–M7</span>
         </div>
         <div className="text-[10px] leading-relaxed">
           SAM3 · ONNX INT8 · Gemini 3.8 · DeepSeek V4.1

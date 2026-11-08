@@ -78,7 +78,7 @@ async fn render_dots_badge_and_serve_docs_and_upload_image() {
         .unwrap();
     let app = anycount_prototype::router(state);
 
-    // Public /api/docs returns 6 methods and glossary
+    // Public /api/docs returns 7 methods and glossary
     let res = app
         .clone()
         .oneshot(
@@ -92,7 +92,7 @@ async fn render_dots_badge_and_serve_docs_and_upload_image() {
     assert_eq!(res.status(), StatusCode::OK);
     let docs: Value =
         serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
-    assert_eq!(docs["methods"].as_array().unwrap().len(), 6);
+    assert_eq!(docs["methods"].as_array().unwrap().len(), 7);
     assert!(docs["glossary"].as_array().unwrap().len() >= 12);
 
     // Upload without session returns 401

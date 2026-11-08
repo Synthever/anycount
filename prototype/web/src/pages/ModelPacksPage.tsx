@@ -81,7 +81,7 @@ export const ModelPacksPage: React.FC<ModelPacksPageProps> = ({
       const res = await api.trainPack(imageId, query.trim());
       setMessage({
         type: "success",
-        text: `Distillation Flywheel dimulai untuk pack "${res.slug}_int8.onnx" (status: ${res.status}). Guru LLM (M3) sedang memberi titik pseudo-label untuk melatih YOLO11n INT8.`,
+        text: `Distillation Flywheel dimulai untuk pack "${res.slug}_int8.onnx" (status: ${res.status}). Guru LLM (Gemini 2x2, M5) sedang memberi titik pseudo-label untuk melatih YOLO11n INT8.`,
       });
       loadData();
     } catch (err) {
@@ -109,7 +109,7 @@ export const ModelPacksPage: React.FC<ModelPacksPageProps> = ({
             style={{ color: "var(--brand-emerald)" }}
           >
             <Cpu className="w-3.5 h-3.5" />
-            <span>Method 2 · Modular On-Device INT8 Engine</span>
+            <span>Method 2 &amp; 3 · Modular On-Device INT8 Engine</span>
           </div>
           <h1 className="text-2xl font-semibold display-head">
             Model Packs (.onnx) & Active Distillation Flywheel
@@ -274,7 +274,7 @@ export const ModelPacksPage: React.FC<ModelPacksPageProps> = ({
             <span>Auto-Train New Class (LLM Teacher &rarr; YOLO11n INT8 .onnx)</span>
           </div>
           <p className="text-xs" style={{ color: "var(--muted-text)" }}>
-            Pilih gambar referensi dan nama objek baru. Sistem akan memanggil Gemini 3.8 Flash (M3) sebagai Guru Validator, membuat kotak pseudo-label adaptif + augmentasi multi-skala, lalu mengekspor bobot <code>.onnx</code> INT8 siap pakai.
+            Pilih gambar referensi dan nama objek baru. Sistem akan memanggil Gemini 3.8 Flash 2x2 (M5) sebagai Guru Validator, membuat kotak pseudo-label adaptif + augmentasi multi-skala, lalu mengekspor bobot <code>.onnx</code> INT8 siap pakai.
           </p>
         </div>
 
@@ -373,7 +373,7 @@ export const ModelPacksPage: React.FC<ModelPacksPageProps> = ({
         )}
         {packs.some((p) => p.trainingInFlight) && (
           <p className="text-[11px] font-mono-tech" style={{ color: "var(--brand-ochre)" }}>
-            Re-train berjalan di background; pack lama tetap melayani M2 sampai
+            Re-train berjalan di background; pack lama tetap melayani M2/M3 sampai
             artefak .onnx baru selesai.
           </p>
         )}

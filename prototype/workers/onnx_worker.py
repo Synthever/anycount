@@ -1,7 +1,8 @@
 """
-Worker for Method 2:
-1. `infer`: Runs quantized INT8 ONNX model pack (single 640 pass + automatic 2x2 tiled pass on dense scenes).
-2. `train`: Distills a new single-class INT8 ONNX model pack (~2.9 MB) from LLM Validator points.
+Worker for the offline ONNX pack (two methods share one artifact):
+1. `infer --mode single`: one 640 full-image pass (M2).
+2. `infer --mode tiled`: always the 2x2 tiled pass + point de-duplication (M3).
+3. `train`: Distills a new single-class INT8 ONNX model pack (~2.9 MB) from LLM Validator points.
 """
 from __future__ import annotations
 
@@ -80,19 +81,51 @@ def run_pass(sess, inp_name: str, im: Image.Image, imgsz: int, conf_thr: float) 
     return pts
 
 
-def accept_tiled_result(single_n: int, tiled_n: int) -> bool:
-    """Decide whether the 2x2 tiled pass replaces the single pass.
+def run_tiled_pass(
+    sess,
+    inp_name: str,
+    im: Image.Image,
+    imgsz: int,
+    sx: float,
+    sy: float,
+    conf_thr: float = 0.35,
+) -> Tuple[List[Tuple[float, float, float]], List[List[int]]]:
+    """Always run the four 2x2 crops (8% overlap) and merge seam duplicates.
 
-    On a large image the single pass can miss everything while the tiled crops
-    still find objects; that rescue must win even though there is no single-pass
-    count to compare against. Otherwise stay inside a band around the single
-    pass: a collapse means lost objects, a spike means duplicated detections.
+    Returns work-image-space points plus the four core boxes expressed in the
+    original image coordinate system (`sx`/`sy` scale work -> original).
     """
-    if tiled_n == 0:
-        return False
-    if single_n == 0:
-        return True
-    return 0.85 * single_n <= tiled_n <= 1.35 * single_n
+    w, h = im.size
+    cell_w, cell_h = w / 2.0, h / 2.0
+    pad_x, pad_y = cell_w * 0.08, cell_h * 0.08
+    seam_tol = min(cell_w, cell_h) * 0.04
+    # Duplicate detections of one object across overlapping crops land within a
+    # few pixels of each other; 0.5% of the short side merges only those.
+    dedupe_px = max(4.0, min(w, h) * 0.005)
+
+    points: List[Tuple[float, float, float]] = []
+    grid_boxes: List[List[int]] = []
+    for r in range(2):
+        for c in range(2):
+            cx0, cy0 = c * cell_w, r * cell_h
+            cx1, cy1 = (c + 1) * cell_w, (r + 1) * cell_h
+            grid_boxes.append([
+                int(round(cx0 * sx)),
+                int(round(cy0 * sy)),
+                int(round(cx1 * sx)),
+                int(round(cy1 * sy)),
+            ])
+            x0 = max(0, int(round(cx0 - (pad_x if c > 0 else 0))))
+            y0 = max(0, int(round(cy0 - (pad_y if r > 0 else 0))))
+            x1 = min(w, int(round(cx1 + (pad_x if c < 1 else 0))))
+            y1 = min(h, int(round(cy1 + (pad_y if r < 1 else 0))))
+            crop = im.crop((x0, y0, x1, y1))
+            for lx, ly, sc in run_pass(sess, inp_name, crop, imgsz, conf_thr=conf_thr):
+                gx, gy = x0 + lx, y0 + ly
+                if cx0 - seam_tol <= gx <= cx1 + seam_tol and cy0 - seam_tol <= gy <= cy1 + seam_tol:
+                    if not any(math.hypot(gx - kx, gy - ky) < dedupe_px for kx, ky, _ in points):
+                        points.append((gx, gy, sc))
+    return points, grid_boxes
 
 
 def cmd_infer(args: argparse.Namespace) -> None:
@@ -111,56 +144,19 @@ def cmd_infer(args: argparse.Namespace) -> None:
     sx = args.orig_width / float(w)
     sy = args.orig_height / float(h)
 
-    single_pts = run_pass(sess, inp_name, im, imgsz, conf_thr=0.25)
-    mode = f"single_{imgsz}"
-    grid_boxes = None
-
-    # Escalate to a 2x2 tiled pass only on dense scenes. Sparse photos keep the
-    # ~150 ms single-pass path; the probe is not free (4 more inferences).
-    dense_trigger = len(single_pts) >= 48 or (w >= 900 and len(single_pts) == 0)
-    tiled_kept: List[Tuple[float, float, float]] = []
-    raw_boxes = []
-    if dense_trigger:
-        tiled_probe = []
-        cell_w, cell_h = w / 2.0, h / 2.0
-        pad_x, pad_y = cell_w * 0.08, cell_h * 0.08
-        seam_tol = min(cell_w, cell_h) * 0.04
-        for r in range(2):
-            for c in range(2):
-                cx0, cy0 = c * cell_w, r * cell_h
-                cx1, cy1 = (c + 1) * cell_w, (r + 1) * cell_h
-                raw_boxes.append([int(round(cx0 * sx)), int(round(cy0 * sy)), int(round(cx1 * sx)), int(round(cy1 * sy))])
-                x0 = max(0, int(round(cx0 - (pad_x if c > 0 else 0))))
-                y0 = max(0, int(round(cy0 - (pad_y if r > 0 else 0))))
-                x1 = min(w, int(round(cx1 + (pad_x if c < 1 else 0))))
-                y1 = min(h, int(round(cy1 + (pad_y if r < 1 else 0))))
-                crop = im.crop((x0, y0, x1, y1))
-                for lx, ly, sc in run_pass(sess, inp_name, crop, imgsz, conf_thr=0.35):
-                    gx, gy = x0 + lx, y0 + ly
-                    if cx0 - seam_tol <= gx <= cx1 + seam_tol and cy0 - seam_tol <= gy <= cy1 + seam_tol:
-                        tiled_probe.append((gx, gy, sc))
-        # Duplicate detections of one object across overlapping crops land within
-        # a few pixels of each other; 0.5% of the short side merges only those.
-        dedupe_px = max(4.0, min(w, h) * 0.005)
-        for gx, gy, sc in tiled_probe:
-            if not any(math.hypot(gx - kx, gy - ky) < dedupe_px for kx, ky, _ in tiled_kept):
-                tiled_kept.append((gx, gy, sc))
-
-    # The old gate (>1.35x single) was unreachable on dense scenes where tiled
-    # removes false positives instead of adding detections. Accept the tiled
-    # pass when it stays inside a band around the single pass and never use a
-    # collapse (e.g. <85% of single) that would mean lost objects. A large
-    # image where the single pass saw nothing is the rescue case: any non-empty
-    # tiled result wins (the old zero-band 0..0 rejected exactly that).
-    band_ok = accept_tiled_result(len(single_pts), len(tiled_kept))
-    if band_ok:
-        single_pts = tiled_kept
+    if args.mode == "tiled":
+        # M3 is always tiled: no single-pass probe, no accept band.
+        raw_points, grid_boxes = run_tiled_pass(sess, inp_name, im, imgsz, sx, sy)
         mode = f"tiled_2x2_{imgsz}+point_nms"
-        grid_boxes = raw_boxes
+    else:
+        # M2 is a single 640 pass only.
+        raw_points = run_pass(sess, inp_name, im, imgsz, conf_thr=0.25)
+        grid_boxes = None
+        mode = f"single_{imgsz}"
 
     elapsed_ms = int(round((time.perf_counter() - t0) * 1000))
     size_mb = round(Path(args.onnx).stat().st_size / (1024 * 1024), 2)
-    points = [{"x": round(px * sx, 2), "y": round(py * sy, 2)} for px, py, _ in single_pts]
+    points = [{"x": round(px * sx, 2), "y": round(py * sy, 2)} for px, py, _ in raw_points]
     print("ANYCOUNT_JSON:" + json.dumps({
         "count": len(points),
         "points": points,
@@ -246,7 +242,7 @@ def cmd_train(args: argparse.Namespace) -> None:
     }), flush=True)
 
 
-def main() -> None:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -255,6 +251,7 @@ def main() -> None:
     p_inf.add_argument("--image", required=True)
     p_inf.add_argument("--orig-width", type=int, required=True)
     p_inf.add_argument("--orig-height", type=int, required=True)
+    p_inf.add_argument("--mode", choices=["single", "tiled"], default="single")
 
     p_trn = sub.add_parser("train")
     p_trn.add_argument("--slug", required=True)
@@ -265,7 +262,11 @@ def main() -> None:
     p_trn.add_argument("--work-dir", required=True)
     p_trn.add_argument("--epochs", type=int, default=15)
 
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
     if args.cmd == "infer":
         cmd_infer(args)
     else:

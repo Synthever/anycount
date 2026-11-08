@@ -40,7 +40,7 @@ describe("InteractiveCanvas dot editing logic", () => {
   });
 
   it("renders MethodResultCard m2 cold_start actions and Composer compare presets", () => {
-    const onRunValidatorM3 = vi.fn();
+    const onRunValidatorM4 = vi.fn();
     const onAutoTrainPack = vi.fn();
 
     render(
@@ -62,14 +62,14 @@ describe("InteractiveCanvas dot editing logic", () => {
         imageWidth={800}
         imageHeight={600}
         query="coins"
-        onRunValidatorM3={onRunValidatorM3}
+        onRunValidatorM4={onRunValidatorM4}
         onAutoTrainPack={onAutoTrainPack}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Run LLM Validator \(M3\)/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Run LLM Validator \(M4\)/i }));
     fireEvent.click(screen.getByRole("button", { name: /Auto-Train \.onnx Pack/i }));
-    expect(onRunValidatorM3).toHaveBeenCalledTimes(1);
+    expect(onRunValidatorM4).toHaveBeenCalledTimes(1);
     expect(onAutoTrainPack).toHaveBeenCalledTimes(1);
 
     const onChangeMethods = vi.fn();
@@ -92,7 +92,7 @@ describe("InteractiveCanvas dot editing logic", () => {
         onQueryChange={() => {}}
         compareMode={true}
         onToggleCompareMode={() => {}}
-        selectedMethods={["m2", "m3", "m6"]}
+        selectedMethods={["m2", "m4", "m7"]}
         onChangeMethods={onChangeMethods}
         onSelectSample={() => {}}
         onUploadFile={() => {}}
@@ -103,8 +103,22 @@ describe("InteractiveCanvas dot editing logic", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /All 6 Methods/i }));
-    expect(onChangeMethods).toHaveBeenCalledWith(["m1", "m2", "m3", "m4", "m5", "m6"]);
+    fireEvent.click(screen.getByRole("button", { name: /Fast Compare \(M2\+M4\+M7\)/i }));
+    expect(onChangeMethods).toHaveBeenCalledWith(["m2", "m4", "m7"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /All 7 Methods/i }));
+    expect(onChangeMethods).toHaveBeenCalledWith([
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+      "m5",
+      "m6",
+      "m7",
+    ]);
+
+    // The composer now sits in the normal page flow, not as a sticky overlay.
+    expect(document.querySelector(".sticky")).toBeNull();
   });
 });
 
@@ -117,7 +131,7 @@ describe("MethodResultCard live count after SSE updates", () => {
   };
   it("shows the completed server count (24) in the Raw drawer instead of the queued 0", () => {
     const queued: MethodResult = {
-      methodId: "m3",
+      methodId: "m4",
       status: "queued",
       count: null,
       points: [],
@@ -127,7 +141,7 @@ describe("MethodResultCard live count after SSE updates", () => {
       completionTokens: null,
       modelSizeMb: null,
       meta: {},
-      renderedUrl: "/api/runs/run_2/render/m3",
+      renderedUrl: "/api/runs/run_2/render/m4",
     };
 
     const completed: MethodResult = {

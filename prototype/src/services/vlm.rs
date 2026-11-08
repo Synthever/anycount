@@ -254,10 +254,10 @@ pub async fn run_vlm_method(
     query: &str,
 ) -> anyhow::Result<VlmRunOutput> {
     let (flavor, tiled) = match method_id {
-        "m3" => (VlmFlavor::GeminiYx, false),
-        "m4" => (VlmFlavor::GeminiYx, true),
-        "m5" => (VlmFlavor::DeepSeekXy, false),
-        "m6" => (VlmFlavor::DeepSeekXy, true),
+        "m4" => (VlmFlavor::GeminiYx, false),
+        "m5" => (VlmFlavor::GeminiYx, true),
+        "m6" => (VlmFlavor::DeepSeekXy, false),
+        "m7" => (VlmFlavor::DeepSeekXy, true),
         other => anyhow::bail!("Metode VLM tidak dikenal: {other}"),
     };
 
@@ -465,7 +465,7 @@ mod tests {
         let img = dir.path().join("work.jpg");
         std::fs::write(&img, b"any-bytes-work-for-the-single-pass").unwrap();
 
-        let out = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m3", &img, 1000, 800, "apple")
+        let out = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m4", &img, 1000, 800, "apple")
             .await
             .expect("a structurally valid zero-object reply must succeed");
         assert!(out.points.is_empty());
@@ -481,7 +481,7 @@ mod tests {
         let img = dir.path().join("work.jpg");
         std::fs::write(&img, b"any-bytes").unwrap();
 
-        let err = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m3", &img, 1000, 800, "apple")
+        let err = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m4", &img, 1000, 800, "apple")
             .await
             .expect_err("unparseable replies must stay errors");
         assert!(err.downcast_ref::<VlmEmptyReply>().is_some());
@@ -507,9 +507,9 @@ mod tests {
         .await;
         let img = write_test_jpeg(dir.path());
 
-        let out = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m4", &img, 400, 400, "apple")
+        let out = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m5", &img, 400, 400, "apple")
             .await
-            .expect("one failed tile must not fail M4");
+            .expect("one failed tile must not fail M5");
         assert_eq!(hits.load(Ordering::SeqCst), 4);
         assert_eq!(out.points.len(), 3);
         assert!(out.raw_preview.contains("tile-error"));
@@ -522,11 +522,32 @@ mod tests {
         let (url, hits) = spawn_vlm_mock(vec![(500, "upstream boom".to_string())]).await;
         let img = write_test_jpeg(dir.path());
 
-        let err = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m6", &img, 400, 400, "apple")
+        let err = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m7", &img, 400, 400, "apple")
             .await
             .expect_err("all tiles failing must fail the method");
         assert!(err.downcast_ref::<VlmEmptyReply>().is_some());
         assert_eq!(hits.load(Ordering::SeqCst), 4);
+    }
+
+    #[tokio::test]
+    async fn m3_belongs_to_the_offline_tiled_path_not_the_vlm_dispatcher() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let img = write_test_jpeg(dir.path());
+        let err = run_vlm_method(
+            &reqwest::Client::new(),
+            &test_cfg(dir.path(), "http://127.0.0.1:9/v1/chat/completions".into()),
+            "m3",
+            &img,
+            400,
+            400,
+            "apple",
+        )
+        .await
+        .expect_err("m3 must be rejected by the VLM dispatcher");
+        assert!(
+            err.to_string().contains("tidak dikenal"),
+            "unexpected error: {err}"
+        );
     }
 
     #[test]

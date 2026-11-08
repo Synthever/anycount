@@ -57,3 +57,26 @@ body {
   font-weight: 500;
   letter-spacing: -0.03em;
 }
+
+/* The studio is a kiosk-style full-screen app: scroll must keep working, but
+   the visible track is noise. Applies to the page itself and, via
+   `.scrollbar-hidden`, to horizontal chip rows. */
+html,
+body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}

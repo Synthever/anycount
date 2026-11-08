@@ -251,8 +251,8 @@ pub async fn train_pack(
         let res: anyhow::Result<()> = async {
             let work_img = PathBuf::from(&work_path);
             let dim = image::image_dimensions(&work_img)?;
-            // 1. Obtain teacher points from Gemini Single-Pass Validator
-            let teacher = run_vlm_method(&st_bg.http, &st_bg.cfg, "m3", &work_img, dim.0, dim.1, &query_bg).await?;
+            // 1. Obtain teacher points from the Gemini 2x2 tiled Validator (M5)
+            let teacher = run_vlm_method(&st_bg.http, &st_bg.cfg, "m5", &work_img, dim.0, dim.1, &query_bg).await?;
             if teacher.points.is_empty() {
                 anyhow::bail!("Validator LLM menemukan 0 objek pada gambar ini");
             }

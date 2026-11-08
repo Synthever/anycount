@@ -4,7 +4,7 @@ export interface Point2D {
 }
 
 export interface MethodResult {
-  methodId: "m1" | "m2" | "m3" | "m4" | "m5" | "m6";
+  methodId: "m1" | "m2" | "m3" | "m4" | "m5" | "m6" | "m7";
   status: "queued" | "running" | "completed" | "cold_start" | "failed";
   count: number | null;
   points: Point2D[];

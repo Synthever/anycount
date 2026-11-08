@@ -71,6 +71,19 @@ describe("Playground session gating", () => {
     rerender(<PlaygroundPage unlocked={false} {...props} />);
 
     await waitFor(() => expect(screen.queryByText(/289 objects/)).toBeNull());
-    expect(screen.getByText(/Siap Menguji 6 Metode/)).toBeTruthy();
+    expect(screen.getByText(/Siap Menguji 7 Metode/)).toBeTruthy();
+  });
+
+  it("shows Upload gambar by default and the picked preset name afterwards", async () => {
+    const props = { onRequireUnlock: () => {}, onPacksChanged: () => {} };
+    render(<PlaygroundPage unlocked={true} {...props} />);
+
+    expect(await screen.findByRole("button", { name: /Upload gambar/i })).toBeTruthy();
+
+    fireEvent.click(await screen.findByRole("button", { name: /apples \(289\)/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^apples$/i })).toBeTruthy()
+    );
   });
 });

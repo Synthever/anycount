@@ -20,14 +20,14 @@ use crate::{
     error::AppError,
     services::{
         m1_ca::run_count_anything,
-        m2_onnx::{run_m2_onnx, OnnxOutcome},
+        m2_onnx::{run_m2_onnx, OnnxMode, OnnxOutcome},
         renderer::{render_annotated_jpeg, Point2D},
         vlm::{run_vlm_method, VlmEmptyReply},
     },
     state::AppState,
 };
 
-const VALID_METHODS: &[&str] = &["m1", "m2", "m3", "m4", "m5", "m6"];
+const VALID_METHODS: &[&str] = &["m1", "m2", "m3", "m4", "m5", "m6", "m7"];
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -177,7 +177,7 @@ pub async fn create_run(
     methods.dedup();
     if methods.is_empty() {
         return Err(AppError::BadRequest(
-            "Pilih minimal satu metode (m1..m6)".into(),
+            "Pilih minimal satu metode (m1..m7)".into(),
         ));
     }
 
@@ -342,7 +342,20 @@ async fn execute_single_method(
                 .await
             }
         },
-        "m2" => match run_m2_onnx(st, work_path, orig_w, orig_h, query).await {
+        "m2" | "m3" => match run_m2_onnx(
+            st,
+            work_path,
+            orig_w,
+            orig_h,
+            query,
+            if method_id == "m3" {
+                OnnxMode::Tiled
+            } else {
+                OnnxMode::Single
+            },
+        )
+        .await
+        {
             Ok(OnnxOutcome::Ready {
                 pack_slug,
                 points,
@@ -404,7 +417,7 @@ async fn execute_single_method(
                 .await
             }
         },
-        "m3" | "m4" | "m5" | "m6" => {
+        "m4" | "m5" | "m6" | "m7" => {
             match run_vlm_method(
                 &st.http, &st.cfg, method_id, work_path, orig_w, orig_h, query,
             )

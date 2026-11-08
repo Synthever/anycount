@@ -63,7 +63,7 @@ async fn m2_cold_start_and_run_creation_work() {
     .await
     .unwrap();
 
-    // Trigger M2 for an untrained object "pineapple" -> transitions to cold_start
+    // Trigger M2/M3 for an untrained object "pineapple" -> both go cold_start
     let res = app
         .clone()
         .oneshot(
@@ -73,7 +73,7 @@ async fn m2_cold_start_and_run_creation_work() {
                 .header(header::COOKIE, &cookie)
                 .header(header::CONTENT_TYPE, "application/json")
                 .body(Body::from(
-                    r#"{"imageId":"img_1","query":"pineapple","methods":["m2"]}"#,
+                    r#"{"imageId":"img_1","query":"pineapple","methods":["m2","m3"]}"#,
                 ))
                 .unwrap(),
         )
@@ -84,7 +84,7 @@ async fn m2_cold_start_and_run_creation_work() {
         serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
     let run_id = created["runId"].as_str().unwrap().to_string();
 
-    tokio::time::sleep(Duration::from_millis(120)).await;
+    tokio::time::sleep(Duration::from_millis(250)).await;
 
     let res = app
         .oneshot(
@@ -99,10 +99,53 @@ async fn m2_cold_start_and_run_creation_work() {
     assert_eq!(res.status(), StatusCode::OK);
     let detail: Value =
         serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
-    assert_eq!(detail["methods"][0]["methodId"], "m2");
-    assert_eq!(detail["methods"][0]["status"], "cold_start");
+    let methods = detail["methods"].as_array().unwrap();
+    assert_eq!(methods.len(), 2, "both offline methods must be recorded");
+    assert_eq!(methods[0]["methodId"], "m2");
+    assert_eq!(methods[0]["status"], "cold_start");
+    assert_eq!(methods[1]["methodId"], "m3");
+    assert_eq!(methods[1]["status"], "cold_start");
     // Spec section 4: a cold-start row makes the run partial, not completed.
     assert_eq!(detail["status"], "partial");
+}
+
+#[tokio::test]
+async fn docs_payload_lists_seven_methods_with_new_ids() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = anycount_prototype::config::Config::for_test(tmp.path());
+    let state = anycount_prototype::state::AppState::init(cfg)
+        .await
+        .unwrap();
+    let app = anycount_prototype::router(state);
+
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/docs")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body: Value =
+        serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let methods = body["methods"].as_array().unwrap();
+    assert_eq!(methods.len(), 7, "the docs payload must advertise seven methods");
+
+    let ids: Vec<&str> = methods.iter().map(|m| m["id"].as_str().unwrap()).collect();
+    assert_eq!(ids, ["m1", "m2", "m3", "m4", "m5", "m6", "m7"]);
+    let codes: Vec<&str> = methods
+        .iter()
+        .map(|m| m["code"].as_str().unwrap())
+        .collect();
+    assert_eq!(codes, ["M1", "M2", "M3", "M4", "M5", "M6", "M7"]);
+
+    // The advertised numbers must stay the measured ones.
+    assert!(methods[1]["speed"].as_str().unwrap().contains("0.15"));
+    assert!(methods[2]["speed"].as_str().unwrap().contains("0.54"));
+    assert!(methods[2]["summary"].as_str().unwrap().contains("289"));
+    assert!(methods[1]["summary"].as_str().unwrap().contains("324"));
 }
 
 #[tokio::test]

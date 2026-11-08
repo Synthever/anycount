@@ -9,6 +9,7 @@ const BRAND_TOKEN_MAP: Record<string, { bg: string; text: string }> = {
   peach: { bg: "var(--brand-peach)", text: "#0a0a0a" },
   ochre: { bg: "var(--brand-ochre)", text: "#0a0a0a" },
   mint: { bg: "var(--brand-mint)", text: "#0a0a0a" },
+  emerald: { bg: "var(--brand-emerald)", text: "#fffaf0" },
 };
 
 export const DocsGlossaryPage: React.FC = () => {
@@ -44,13 +45,13 @@ export const DocsGlossaryPage: React.FC = () => {
           <span>Architecture Reference & Plain-Indonesian Guide</span>
         </div>
         <h1 className="text-2xl font-semibold display-head">
-          Method Docs (M1–M6) & Kamus Istilah Awam
+          Method Docs (M1–M7) & Kamus Istilah Awam
         </h1>
         <p
           className="text-xs mt-1 max-w-2xl leading-relaxed"
           style={{ color: "var(--muted-text)" }}
         >
-          Panduan lengkap cara kerja keenam metode penghitung objek AnyCount beserta kamus 12 istilah teknis dalam bahasa sehari-hari.
+          Panduan lengkap cara kerja ketujuh metode penghitung objek AnyCount beserta kamus 12 istilah teknis dalam bahasa sehari-hari.
         </p>
       </div>
 
