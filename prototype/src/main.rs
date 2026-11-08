@@ -1,4 +1,4 @@
-use anycount_prototype::{config::Config, router, state::AppState};
+use anycount_prototype::{config::Config, router, routes, state::AppState};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -13,6 +13,7 @@ async fn main() -> anyhow::Result<()> {
     let cfg = Config::from_env()?;
     let bind_addr = cfg.bind_addr;
     let state = AppState::init(cfg).await?;
+    routes::samples::seed_research_samples(&state).await?;
     let app = router(state);
 
     let listener = TcpListener::bind(bind_addr).await?;
