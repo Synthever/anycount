@@ -73,6 +73,8 @@ interface InteractiveCanvasProps {
   editMode: boolean;
   showGrid: boolean;
   methodId: string;
+  /** Server identity key; local edits reset only when this changes. */
+  resetKey: string;
   onPointsChange?: (currentPoints: Point2D[], manualDelta: number) => void;
 }
 
@@ -86,15 +88,26 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   editMode,
   showGrid,
   methodId,
+  resetKey,
   onPointsChange,
 }) => {
   const [history, setHistory] = useState<Point2D[][]>([initialPoints]);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
+  const initialPointsRef = useRef(initialPoints);
+  const onPointsChangeRef = useRef(onPointsChange);
 
   useEffect(() => {
-    setHistory([initialPoints]);
-  }, [initialPoints]);
+    initialPointsRef.current = initialPoints;
+    onPointsChangeRef.current = onPointsChange;
+  });
+
+  // SSE snapshots re-send the same points as a fresh array; only a real server
+  // identity change (run/method/status/count) may discard manual edits.
+  useEffect(() => {
+    setHistory([initialPointsRef.current]);
+    onPointsChangeRef.current?.(initialPointsRef.current, 0);
+  }, [resetKey]);
 
   const currentPoints = history[history.length - 1] ?? initialPoints;
   const effectiveCount = currentPoints.length;
@@ -170,7 +183,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     }
 
     // Count-Anything style red (#e62823) dots with white (#ffffff) 2px ring
-    const radius = Math.max(5, Math.round(Math.min(w, h) / 140));
+    const radius = Math.max(5, Math.round(Math.min(w, h) / 180));
     for (const pt of currentPoints) {
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, radius + 2, 0, Math.PI * 2);
@@ -206,7 +219,7 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
     a.click();
   };
 
-  const dotRadius = Math.max(5, Math.round(Math.min(imageWidth || 800, imageHeight || 600) / 135));
+  const dotRadius = Math.max(5, Math.round(Math.min(imageWidth || 800, imageHeight || 600) / 180));
   const strokeW = Math.max(2, Math.round(dotRadius * 0.38));
 
   return (

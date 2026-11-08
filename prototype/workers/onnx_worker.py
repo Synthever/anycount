@@ -100,13 +100,16 @@ def cmd_infer(args: argparse.Namespace) -> None:
     mode = f"single_{imgsz}"
     grid_boxes = None
 
-    # Escalate to 2x2 Tiled ONNX pass when scene is dense
-    if len(single_pts) >= 48 or (w >= 900 and len(single_pts) == 0):
+    # Escalate to a 2x2 tiled pass only on dense scenes. Sparse photos keep the
+    # ~150 ms single-pass path; the probe is not free (4 more inferences).
+    dense_trigger = len(single_pts) >= 48 or (w >= 900 and len(single_pts) == 0)
+    tiled_kept: List[Tuple[float, float, float]] = []
+    raw_boxes = []
+    if dense_trigger:
         tiled_probe = []
         cell_w, cell_h = w / 2.0, h / 2.0
         pad_x, pad_y = cell_w * 0.08, cell_h * 0.08
         seam_tol = min(cell_w, cell_h) * 0.04
-        raw_boxes = []
         for r in range(2):
             for c in range(2):
                 cx0, cy0 = c * cell_w, r * cell_h
@@ -120,15 +123,23 @@ def cmd_infer(args: argparse.Namespace) -> None:
                 for lx, ly, sc in run_pass(sess, inp_name, crop, imgsz, conf_thr=0.35):
                     gx, gy = x0 + lx, y0 + ly
                     if cx0 - seam_tol <= gx <= cx1 + seam_tol and cy0 - seam_tol <= gy <= cy1 + seam_tol:
-                        tiled_probe.append((gx, gy, sc, f"r{r}_c{c}"))
-        if len(tiled_probe) > len(single_pts) * 1.35:
-            kept = []
-            for gx, gy, sc, tid in tiled_probe:
-                if not any(math.hypot(gx - kx, gy - ky) < 16.0 for kx, ky, _, _ in kept):
-                    kept.append((gx, gy, sc, tid))
-            single_pts = [(gx, gy, sc) for gx, gy, sc, _ in kept]
-            mode = f"tiled_2x2_{imgsz}+point_nms"
-            grid_boxes = raw_boxes
+                        tiled_probe.append((gx, gy, sc))
+        # Duplicate detections of one object across overlapping crops land within
+        # a few pixels of each other; 0.5% of the short side merges only those.
+        dedupe_px = max(4.0, min(w, h) * 0.005)
+        for gx, gy, sc in tiled_probe:
+            if not any(math.hypot(gx - kx, gy - ky) < dedupe_px for kx, ky, _ in tiled_kept):
+                tiled_kept.append((gx, gy, sc))
+
+    # The old gate (>1.35x single) was unreachable on dense scenes where tiled
+    # removes false positives instead of adding detections. Accept the tiled
+    # pass when it stays inside a band around the single pass and never use a
+    # collapse (e.g. <85% of single) that would mean lost objects.
+    band_ok = tiled_kept and 0.85 * len(single_pts) <= len(tiled_kept) <= 1.35 * len(single_pts)
+    if band_ok:
+        single_pts = tiled_kept
+        mode = f"tiled_2x2_{imgsz}+point_nms"
+        grid_boxes = raw_boxes
 
     elapsed_ms = int(round((time.perf_counter() - t0) * 1000))
     size_mb = round(Path(args.onnx).stat().st_size / (1024 * 1024), 2)

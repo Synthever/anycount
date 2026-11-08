@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use axum::{
     body::Body,
     extract::{Path, State},
@@ -6,9 +5,13 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use dashmap::DashMap;
 use serde::Deserialize;
 use serde_json::json;
-use tokio::process::Command;
+use std::path::PathBuf;
+use std::sync::LazyLock;
+use std::time::Duration;
+use tokio::{process::Command, time::timeout};
 
 use crate::{
     auth::{now_rfc3339, RequireSession},
@@ -16,6 +19,16 @@ use crate::{
     services::{m2_onnx::normalize_query_slug, vlm::run_vlm_method},
     state::AppState,
 };
+
+/// Heavy distillation can legitimately take many minutes on CPU; cap it so a
+/// wedged worker cannot hold the semaphore forever.
+const TRAIN_TIMEOUT_SECS: u64 = 1800;
+
+struct TrainJob;
+
+/// In-flight auto-train jobs keyed by pack slug. Kept outside `model_packs`
+/// because a ready pack must keep serving while a new artifact is distilled.
+static TRAIN_JOBS: LazyLock<DashMap<String, TrainJob>> = LazyLock::new(DashMap::new);
 
 pub async fn seed_default_apple_pack(st: &AppState) -> anyhow::Result<()> {
     let apple_onnx = st
@@ -25,7 +38,8 @@ pub async fn seed_default_apple_pack(st: &AppState) -> anyhow::Result<()> {
     if !apple_onnx.exists() {
         return Ok(());
     }
-    let size_mb = ((apple_onnx.metadata()?.len() as f64) / (1024.0 * 1024.0) * 100.0).round() / 100.0;
+    let size_mb =
+        ((apple_onnx.metadata()?.len() as f64) / (1024.0 * 1024.0) * 100.0).round() / 100.0;
     let aliases = serde_json::to_string(&["apple", "apples", "apel", "red apple", "green apple"])?;
 
     sqlx::query(
@@ -64,6 +78,7 @@ pub async fn list_packs(State(st): State<AppState>) -> Result<impl IntoResponse,
                 "trainedEpochs": r.5,
                 "valMapePct": r.6,
                 "status": r.7,
+                "trainingInFlight": TRAIN_JOBS.contains_key(&r.0),
                 "updatedAt": r.8,
                 "downloadUrl": format!("/api/packs/{}/download", r.0),
             })
@@ -76,15 +91,15 @@ pub async fn download_pack(
     State(st): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Response, AppError> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT onnx_path FROM model_packs WHERE slug = ? AND status = 'ready'",
-    )
-    .bind(&slug)
-    .fetch_optional(&st.pool)
-    .await
-    .map_err(|e| AppError::Internal(e.into()))?;
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT onnx_path FROM model_packs WHERE slug = ? AND status = 'ready'")
+            .bind(&slug)
+            .fetch_optional(&st.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
 
-    let (onnx_path,) = row.ok_or_else(|| AppError::NotFound("Model pack tidak ditemukan".into()))?;
+    let (onnx_path,) =
+        row.ok_or_else(|| AppError::NotFound("Model pack tidak ditemukan".into()))?;
     let bytes = tokio::fs::read(&onnx_path)
         .await
         .map_err(|_| AppError::NotFound("File .onnx tidak ditemukan di disk".into()))?;
@@ -114,35 +129,70 @@ pub async fn train_pack(
 ) -> Result<impl IntoResponse, AppError> {
     let slug = normalize_query_slug(&req.query);
     if slug.is_empty() {
-        return Err(AppError::BadRequest("Query objek tidak boleh kosong".into()));
+        return Err(AppError::BadRequest(
+            "Query objek tidak boleh kosong".into(),
+        ));
+    }
+    if TRAIN_JOBS.contains_key(&slug) {
+        return Err(AppError::Conflict(
+            "Auto-train untuk pack ini masih berjalan".into(),
+        ));
     }
 
-    let img_row: Option<(String, i64, i64)> = sqlx::query_as(
-        "SELECT work_path, width, height FROM images WHERE id = ?",
-    )
-    .bind(&req.image_id)
-    .fetch_optional(&st.pool)
-    .await
-    .map_err(|e| AppError::Internal(e.into()))?;
+    let img_row: Option<(String, i64, i64)> =
+        sqlx::query_as("SELECT work_path, width, height FROM images WHERE id = ?")
+            .bind(&req.image_id)
+            .fetch_optional(&st.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
     let (work_path, _orig_w, _orig_h) =
         img_row.ok_or_else(|| AppError::NotFound("Gambar tidak ditemukan".into()))?;
 
-    let aliases = serde_json::to_string(&[req.query.trim().to_lowercase(), slug.clone()]).unwrap();
-    let out_onnx = st.cfg.data_dir.join("packs").join(format!("{slug}_int8.onnx"));
+    let existing: Option<(String,)> =
+        sqlx::query_as("SELECT status FROM model_packs WHERE slug = ?")
+            .bind(&slug)
+            .fetch_optional(&st.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
 
-    sqlx::query(
-        "INSERT INTO model_packs (slug, display_name, aliases_json, onnx_path, size_mb, imgsz, trained_epochs, val_mape_pct, status, updated_at) \
-         VALUES (?, ?, ?, ?, 0.0, 640, 15, NULL, 'training', ?) \
-         ON CONFLICT(slug) DO UPDATE SET status = 'training', updated_at = excluded.updated_at",
-    )
-    .bind(&slug)
-    .bind(format!("{} Detector (Auto-Distilled INT8)", req.query.trim()))
-    .bind(&aliases)
-    .bind(out_onnx.to_string_lossy().to_string())
-    .bind(now_rfc3339())
-    .execute(&st.pool)
-    .await
-    .map_err(|e| AppError::Internal(e.into()))?;
+    let aliases = serde_json::to_string(&[req.query.trim().to_lowercase(), slug.clone()]).unwrap();
+    let out_onnx = st
+        .cfg
+        .data_dir
+        .join("packs")
+        .join(format!("{slug}_int8.onnx"));
+    let tmp_onnx = st
+        .cfg
+        .data_dir
+        .join("packs")
+        .join(format!("{slug}_int8.tmp.onnx"));
+
+    let previous_status = existing.as_ref().map(|(status,)| status.clone());
+    let keep_serving = previous_status.as_deref() == Some("ready");
+
+    if existing.is_none() {
+        sqlx::query(
+            "INSERT INTO model_packs (slug, display_name, aliases_json, onnx_path, size_mb, imgsz, trained_epochs, val_mape_pct, status, updated_at) \
+             VALUES (?, ?, ?, ?, 0.0, 640, 15, NULL, 'training', ?)",
+        )
+        .bind(&slug)
+        .bind(format!("{} Detector (Auto-Distilled INT8)", req.query.trim()))
+        .bind(&aliases)
+        .bind(out_onnx.to_string_lossy().to_string())
+        .bind(now_rfc3339())
+        .execute(&st.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
+    } else if !keep_serving {
+        sqlx::query("UPDATE model_packs SET status = 'training', updated_at = ? WHERE slug = ?")
+            .bind(now_rfc3339())
+            .bind(&slug)
+            .execute(&st.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
+    }
+
+    TRAIN_JOBS.insert(slug.clone(), TrainJob);
 
     let st_bg = st.clone();
     let slug_bg = slug.clone();
@@ -161,52 +211,96 @@ pub async fn train_pack(
             let pts_file = tmp_dir.join("teacher_points.json");
             tokio::fs::write(&pts_file, serde_json::to_vec(&json!({ "points": teacher.points }))?).await?;
 
-            // 2. Distill YOLO11n -> INT8 ONNX under heavy_semaphore
+            // 2. Distill YOLO11n -> INT8 ONNX under heavy_semaphore. The artifact
+            // is written to a temp path and only promoted after it exists.
             let _permit = st_bg.heavy_semaphore.acquire().await?;
-            let out = Command::new(&st_bg.cfg.onnx_python_bin)
-                .env_remove("PYTHONPATH")
-                .arg("workers/onnx_worker.py")
-                .arg("train")
-                .arg("--slug")
-                .arg(&slug_bg)
-                .arg("--image")
-                .arg(&work_img)
-                .arg("--points-json")
-                .arg(&pts_file)
-                .arg("--base-weights")
-                .arg(&st_bg.cfg.yolo_base_weights)
-                .arg("--out-onnx")
-                .arg(&out_onnx)
-                .arg("--work-dir")
-                .arg(tmp_dir.join("ds"))
-                .arg("--epochs")
-                .arg("15")
-                .output()
-                .await?;
+            let out = timeout(
+                Duration::from_secs(TRAIN_TIMEOUT_SECS),
+                Command::new(&st_bg.cfg.onnx_python_bin)
+                    .env_remove("PYTHONPATH")
+                    .arg("workers/onnx_worker.py")
+                    .arg("train")
+                    .arg("--slug")
+                    .arg(&slug_bg)
+                    .arg("--image")
+                    .arg(&work_img)
+                    .arg("--points-json")
+                    .arg(&pts_file)
+                    .arg("--base-weights")
+                    .arg(&st_bg.cfg.yolo_base_weights)
+                    .arg("--out-onnx")
+                    .arg(&tmp_onnx)
+                    .arg("--work-dir")
+                    .arg(tmp_dir.join("ds"))
+                    .arg("--epochs")
+                    .arg("15")
+                    .kill_on_drop(true)
+                    .output(),
+            )
+            .await
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "onnx_worker train timeout setelah {TRAIN_TIMEOUT_SECS} detik (proses dibunuh)"
+                )
+            })??;
             let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
             if !out.status.success() {
                 anyhow::bail!("onnx_worker train failed");
             }
+            let meta = tokio::fs::metadata(&tmp_onnx).await?;
+            if meta.len() == 0 {
+                anyhow::bail!("onnx_worker menghasilkan artefak .onnx kosong");
+            }
+            tokio::fs::rename(&tmp_onnx, &out_onnx).await?;
             let size_mb = ((tokio::fs::metadata(&out_onnx).await?.len() as f64) / (1024.0 * 1024.0) * 100.0).round() / 100.0;
-            sqlx::query("UPDATE model_packs SET size_mb = ?, status = 'ready', updated_at = ? WHERE slug = ?")
-                .bind(size_mb)
-                .bind(now_rfc3339())
-                .bind(&slug_bg)
-                .execute(&st_bg.pool)
-                .await?;
+            sqlx::query(
+                "UPDATE model_packs SET onnx_path = ?, size_mb = ?, trained_epochs = 15, status = 'ready', updated_at = ? WHERE slug = ?",
+            )
+            .bind(out_onnx.to_string_lossy().to_string())
+            .bind(size_mb)
+            .bind(now_rfc3339())
+            .bind(&slug_bg)
+            .execute(&st_bg.pool)
+            .await?;
             Ok(())
         }
         .await;
 
-        if let Err(e) = res {
-            tracing::error!(error = ?e, slug = %slug_bg, "auto-train pack failed");
-            let _ = sqlx::query("UPDATE model_packs SET status = 'failed', updated_at = ? WHERE slug = ?")
-                .bind(now_rfc3339())
-                .bind(&slug_bg)
-                .execute(&st_bg.pool)
-                .await;
+        match res {
+            Ok(()) => {
+                tracing::info!(slug = %slug_bg, "auto-train pack ready");
+            }
+            Err(e) => {
+                tracing::error!(error = ?e, slug = %slug_bg, "auto-train pack failed");
+                let _ = tokio::fs::remove_file(&tmp_onnx).await;
+                let restored = match previous_status.as_deref() {
+                    Some(prev) => sqlx::query(
+                        "UPDATE model_packs SET status = ?, updated_at = ? WHERE slug = ?",
+                    )
+                    .bind(prev)
+                    .bind(now_rfc3339())
+                    .bind(&slug_bg)
+                    .execute(&st_bg.pool)
+                    .await
+                    .map(|_| prev.to_string()),
+                    None => sqlx::query(
+                        "UPDATE model_packs SET status = 'failed', updated_at = ? WHERE slug = ?",
+                    )
+                    .bind(now_rfc3339())
+                    .bind(&slug_bg)
+                    .execute(&st_bg.pool)
+                    .await
+                    .map(|_| "failed".to_string()),
+                };
+                if let Err(db_err) = restored {
+                    tracing::error!(error = ?db_err, slug = %slug_bg, "failed to restore pack status");
+                }
+            }
         }
+        TRAIN_JOBS.remove(&slug_bg);
     });
 
-    Ok(Json(json!({ "slug": slug, "status": "training" })))
+    Ok(Json(
+        json!({ "slug": slug, "status": "training", "packStatusUnchanged": keep_serving }),
+    ))
 }

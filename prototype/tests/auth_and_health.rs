@@ -139,6 +139,7 @@ async fn health_and_passcode_unlock_flow() {
         .to_string();
     assert!(set_cookie.contains("anycount_session="));
     assert!(set_cookie.contains("HttpOnly"));
+    assert!(set_cookie.contains("Secure"));
     assert!(set_cookie.contains("SameSite=Lax"));
 
     let cookie_kv = set_cookie.split(';').next().unwrap().to_string();
@@ -252,6 +253,52 @@ async fn health_and_passcode_unlock_flow() {
     let body: Value =
         serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
     assert_eq!(body["error"]["code"], "INTERNAL_ERROR");
+}
+
+#[tokio::test]
+async fn unlock_is_rate_limited_per_ip() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = anycount_prototype::config::Config::for_test(tmp.path());
+    let state = anycount_prototype::state::AppState::init(cfg)
+        .await
+        .unwrap();
+    let app = anycount_prototype::router(state);
+
+    let attempt = |passcode: &'static str, ip: &'static str| {
+        let app = app.clone();
+        async move {
+            app.oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/auth/unlock")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header("x-forwarded-for", ip)
+                    .body(Body::from(format!(r#"{{"passcode":"{passcode}"}}"#)))
+                    .unwrap(),
+            )
+            .await
+            .unwrap()
+        }
+    };
+
+    // Fixed window: 10 failed attempts allowed, the 11th is throttled.
+    for i in 0..10 {
+        let res = attempt("definitely-wrong", "203.0.113.9").await;
+        assert_eq!(res.status(), StatusCode::UNAUTHORIZED, "attempt {i}");
+    }
+    let res = attempt("definitely-wrong", "203.0.113.9").await;
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+    let body: Value =
+        serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(body["error"]["code"], "RATE_LIMITED");
+
+    // Even the right passcode is refused while the IP is throttled.
+    let res = attempt("2limanov", "203.0.113.9").await;
+    assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+
+    // A different client IP is unaffected.
+    let res = attempt("2limanov", "198.51.100.7").await;
+    assert_eq!(res.status(), StatusCode::OK);
 }
 
 #[test]

@@ -1,5 +1,5 @@
-use std::path::{Path, PathBuf};
 use serde_json::Value;
+use std::path::{Path, PathBuf};
 use tokio::process::Command;
 
 use crate::{services::renderer::Point2D, state::AppState};
@@ -29,7 +29,10 @@ pub fn normalize_query_slug(q: &str) -> String {
     trimmed.strip_suffix('s').unwrap_or(trimmed).to_string()
 }
 
-pub async fn find_ready_pack(st: &AppState, query: &str) -> anyhow::Result<Option<(String, PathBuf, f64)>> {
+pub async fn find_ready_pack(
+    st: &AppState,
+    query: &str,
+) -> anyhow::Result<Option<(String, PathBuf, f64)>> {
     let norm = query.trim().to_lowercase();
     let slug_guess = normalize_query_slug(query);
     let rows: Vec<(String, String, String, f64)> = sqlx::query_as(
@@ -42,7 +45,9 @@ pub async fn find_ready_pack(st: &AppState, query: &str) -> anyhow::Result<Optio
         let aliases: Vec<String> = serde_json::from_str(&aliases_json).unwrap_or_default();
         if slug == norm
             || slug == slug_guess
-            || aliases.iter().any(|a| a.eq_ignore_ascii_case(&norm) || a.eq_ignore_ascii_case(&slug_guess))
+            || aliases
+                .iter()
+                .any(|a| a.eq_ignore_ascii_case(&norm) || a.eq_ignore_ascii_case(&slug_guess))
         {
             let p = PathBuf::from(&onnx_path);
             if p.exists() {
@@ -83,7 +88,9 @@ pub async fn run_m2_onnx(
 
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);
-        anyhow::bail!("ONNX inference gagal: {}", &err[err.len().saturating_sub(300)..]);
+        let count = err.chars().count();
+        let tail: String = err.chars().skip(count.saturating_sub(300)).collect();
+        anyhow::bail!("ONNX inference gagal: {tail}");
     }
 
     let stdout = String::from_utf8_lossy(&out.stdout);

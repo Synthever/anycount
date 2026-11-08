@@ -1,8 +1,9 @@
-use std::path::Path;
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use futures::future::join_all;
 use regex::Regex;
 use serde_json::{json, Value};
+use std::path::Path;
+use std::sync::LazyLock;
 
 use crate::{
     config::Config,
@@ -26,6 +27,22 @@ pub enum VlmFlavor {
     GeminiYx,
     DeepSeekXy,
 }
+
+#[derive(Clone, Debug)]
+pub struct VlmEmptyReply {
+    pub preview: String,
+}
+
+impl std::fmt::Display for VlmEmptyReply {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Balasan VLM kosong atau tidak bisa diurai menjadi titik objek"
+        )
+    }
+}
+
+impl std::error::Error for VlmEmptyReply {}
 
 pub fn parse_gateway_response(raw_body: &str) -> (String, i64, i64) {
     let trimmed = raw_body.trim_start();
@@ -60,16 +77,22 @@ pub fn parse_gateway_response(raw_body: &str) -> (String, i64, i64) {
             }
             if chunk.get("usage").is_some() {
                 p_tok = chunk["usage"]["prompt_tokens"].as_i64().unwrap_or(p_tok);
-                c_tok = chunk["usage"]["completion_tokens"].as_i64().unwrap_or(c_tok);
+                c_tok = chunk["usage"]["completion_tokens"]
+                    .as_i64()
+                    .unwrap_or(c_tok);
             }
         }
     }
     (parts.join(""), p_tok, c_tok)
 }
 
+static RE_FENCE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?s)^```(?:json)?\s*|\s*```$").unwrap());
+static RE_PAIR: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]").unwrap());
+
 pub fn extract_norm_pairs(text: &str) -> Vec<[f64; 2]> {
-    let re_fence = Regex::new(r"(?s)^```(?:json)?\s*|\s*```$").unwrap();
-    let cleaned = re_fence.replace_all(text.trim(), "");
+    let cleaned = RE_FENCE.replace_all(text.trim(), "");
     if let Ok(val) = serde_json::from_str::<Value>(&cleaned) {
         let arr_opt = if val.is_array() {
             val.as_array()
@@ -93,7 +116,7 @@ pub fn extract_norm_pairs(text: &str) -> Vec<[f64; 2]> {
         }
     }
 
-    let re_pair = Regex::new(r"\[\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*\]").unwrap();
+    let re_pair = &*RE_PAIR;
     re_pair
         .captures_iter(&cleaned)
         .filter_map(|cap| {
@@ -189,13 +212,36 @@ async fn call_vlm_bytes(
     let status = resp.status();
     let raw_body = resp.text().await?;
     if !status.is_success() {
-        anyhow::bail!("Upstream VLM HTTP {status}: {}", &raw_body[..raw_body.len().min(240)]);
+        let tail: String = raw_body.chars().take(240).collect();
+        anyhow::bail!("Upstream VLM HTTP {status}: {tail}");
     }
 
     let (content, p_tok, c_tok) = parse_gateway_response(&raw_body);
     let pairs = extract_norm_pairs(&content);
     let preview: String = content.chars().take(500).collect();
+    if pairs.is_empty() && !reply_has_structure(&content) {
+        // An empty or unparseable reply is an execution failure, not "0 objects":
+        // silently reporting count 0 poisons runs, renders and the flywheel.
+        return Err(anyhow::Error::new(VlmEmptyReply {
+            preview: preview.clone(),
+        }));
+    }
     Ok((pairs, p_tok, c_tok, preview))
+}
+
+/// True when the model reply is a JSON point payload (even an empty one) or at
+/// least contains parseable `[x, y]` pairs.
+fn reply_has_structure(text: &str) -> bool {
+    let cleaned = RE_FENCE.replace_all(text.trim(), "");
+    if let Ok(val) = serde_json::from_str::<Value>(&cleaned) {
+        if val.is_array() {
+            return true;
+        }
+        if let Some(points) = val.get("points") {
+            return points.is_array();
+        }
+    }
+    RE_PAIR.is_match(&cleaned)
 }
 
 pub async fn run_vlm_method(
@@ -219,7 +265,7 @@ pub async fn run_vlm_method(
         let jpeg_bytes = tokio::fs::read(work_img_path).await?;
         let (pairs, p_tok, c_tok, preview) =
             call_vlm_bytes(http, cfg, flavor, &jpeg_bytes, query, false).await?;
-        let points = pairs
+        let points: Vec<Point2D> = pairs
             .into_iter()
             .map(|pair| {
                 let (x, y) = norm_to_px(pair, flavor, orig_w as f64, orig_h as f64);
@@ -229,6 +275,9 @@ pub async fn run_vlm_method(
                 }
             })
             .collect();
+        if points.is_empty() {
+            return Err(anyhow::Error::new(VlmEmptyReply { preview }));
+        }
         return Ok(VlmRunOutput {
             points,
             grid_boxes: None,
@@ -267,7 +316,11 @@ pub async fn run_vlm_method(
             let (lx, ly) = norm_to_px(pair, flavor, tile.tile_w as f64, tile.tile_h as f64);
             let gx = crop_x0 as f64 + lx;
             let gy = crop_y0 as f64 + ly;
-            if gx >= core_x0 - tol && gx <= core_x1 + tol && gy >= core_y0 - tol && gy <= core_y1 + tol {
+            if gx >= core_x0 - tol
+                && gx <= core_x1 + tol
+                && gy >= core_y0 - tol
+                && gy <= core_y1 + tol
+            {
                 all_tiled_pts.push(TiledPoint {
                     x: gx * scale_x,
                     y: gy * scale_y,
@@ -275,6 +328,12 @@ pub async fn run_vlm_method(
                 });
             }
         }
+    }
+
+    if all_tiled_pts.is_empty() {
+        return Err(anyhow::Error::new(VlmEmptyReply {
+            preview: previews.join("\n"),
+        }));
     }
 
     let dedup = adaptive_point_nms(&all_tiled_pts, orig_w, orig_h);
@@ -302,6 +361,17 @@ pub async fn run_vlm_method(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn detects_empty_and_unparseable_replies() {
+        assert!(!reply_has_structure(""));
+        assert!(!reply_has_structure("I could not find any apples here."));
+        assert!(reply_has_structure(r#"{"points": []}"#));
+        assert!(reply_has_structure("[[250, 500]]"));
+        assert!(reply_has_structure(
+            "Found 2.\n```json\n{\"count\":2,\"points\":[[700, 300]]}\n```"
+        ));
+    }
 
     #[test]
     fn parses_gemini_sse_yx_and_deepseek_json_done_xy() {

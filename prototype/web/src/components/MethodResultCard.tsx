@@ -58,6 +58,7 @@ export const METHOD_CATALOG: Record<
 
 interface MethodResultCardProps {
   result: MethodResult;
+  runId?: string;
   imageUrl: string;
   imageWidth: number;
   imageHeight: number;
@@ -70,6 +71,7 @@ interface MethodResultCardProps {
 
 export const MethodResultCard: React.FC<MethodResultCardProps> = ({
   result,
+  runId,
   imageUrl,
   imageWidth,
   imageHeight,
@@ -86,9 +88,15 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
   // the source of truth so SSE transitions (queued -> completed) render live.
   const [manualDelta, setManualDelta] = useState(0);
 
+  // Reset edits only when the server identity really changes. Background SSE
+  // snapshots re-send the same points array and must not wipe manual edits.
+  const resetKey = `${runId ?? "run"}:${result.methodId}:${result.status}:${
+    result.count ?? result.points.length
+  }`;
+
   useEffect(() => {
     setManualDelta(0);
-  }, [result.status, result.count, result.points.length]);
+  }, [resetKey]);
 
   const info = METHOD_CATALOG[result.methodId] ?? {
     code: result.methodId.toUpperCase(),
@@ -416,12 +424,15 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
               editMode={editMode}
               showGrid={showGrid}
               methodId={result.methodId}
+              resetKey={resetKey}
               onPointsChange={(_pts, delta) => {
                 setManualDelta(delta);
               }}
             />
 
-            {result.methodId === "m2" && onRunValidatorM3 && (
+            {result.methodId === "m2" &&
+              onRunValidatorM3 &&
+              Boolean(result.meta?.packSlug || result.meta?.mode) && (
               <div className="flex items-center justify-between px-3 py-2 rounded-xl text-xs"
                 style={{
                   backgroundColor: "var(--surface-soft)",
@@ -429,7 +440,12 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
                 }}
               >
                 <span style={{ color: "var(--body-text)" }}>
-                  Pack aktif: <code className="font-mono-tech">{String(result.meta?.packSlug || "apple")}</code> ({String(result.meta?.mode || "single_640")})
+                  Pack aktif:{" "}
+                  {result.meta?.packSlug ? (
+                    <code className="font-mono-tech">{String(result.meta.packSlug)}</code>
+                  ) : null}
+                  {result.meta?.packSlug && result.meta?.mode ? " " : null}
+                  {result.meta?.mode ? `(${String(result.meta.mode)})` : null}
                 </span>
                 <button
                   type="button"

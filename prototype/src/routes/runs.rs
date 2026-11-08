@@ -1,4 +1,3 @@
-use std::{convert::Infallible, path::PathBuf, time::Instant};
 use axum::{
     body::Body,
     extract::{Path, State},
@@ -12,6 +11,7 @@ use axum::{
 use futures::StreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use std::{convert::Infallible, path::PathBuf, time::Instant};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -22,7 +22,7 @@ use crate::{
         m1_ca::run_count_anything,
         m2_onnx::{run_m2_onnx, OnnxOutcome},
         renderer::{render_annotated_jpeg, Point2D},
-        vlm::run_vlm_method,
+        vlm::{run_vlm_method, VlmEmptyReply},
     },
     state::AppState,
 };
@@ -73,9 +73,18 @@ pub async fn load_run_json(st: &AppState, run_id: &str) -> anyhow::Result<Option
     let methods: Vec<Value> = m_rows
         .into_iter()
         .map(|m| {
-            let pts: Value = m.3.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(json!([]));
-            let grids: Value = m.4.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(Value::Null);
-            let meta: Value = m.9.as_deref().and_then(|s| serde_json::from_str(s).ok()).unwrap_or(json!({}));
+            let pts: Value =
+                m.3.as_deref()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or(json!([]));
+            let grids: Value =
+                m.4.as_deref()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or(Value::Null);
+            let meta: Value =
+                m.9.as_deref()
+                    .and_then(|s| serde_json::from_str(s).ok())
+                    .unwrap_or(json!({}));
             json!({
                 "methodId": m.0,
                 "status": m.1,
@@ -113,6 +122,45 @@ async fn emit_snapshot(st: &AppState, run_id: &str) {
     }
 }
 
+/// Spec section 4: a run is `partial` when any method failed or needs a
+/// cold-start pack, `failed` only when every method failed.
+async fn derive_run_status(st: &AppState, run_id: &str) -> &'static str {
+    let rows: Vec<(String, i64)> = match sqlx::query_as(
+        "SELECT status, COUNT(*) FROM run_methods WHERE run_id = ? GROUP BY status",
+    )
+    .bind(run_id)
+    .fetch_all(&st.pool)
+    .await
+    {
+        Ok(rows) => rows,
+        Err(e) => {
+            tracing::error!(error = ?e, run_id, "failed to derive run status");
+            return "completed";
+        }
+    };
+
+    let mut total = 0i64;
+    let mut failed = 0i64;
+    let mut cold = 0i64;
+    for (status, count) in rows {
+        total += count;
+        match status.as_str() {
+            "failed" => failed += count,
+            "cold_start" => cold += count,
+            _ => {}
+        }
+    }
+    if total == 0 {
+        "completed"
+    } else if failed == total {
+        "failed"
+    } else if failed > 0 || cold > 0 {
+        "partial"
+    } else {
+        "completed"
+    }
+}
+
 pub async fn create_run(
     State(st): State<AppState>,
     _session: RequireSession,
@@ -130,29 +178,32 @@ pub async fn create_run(
     methods.sort();
     methods.dedup();
     if methods.is_empty() {
-        return Err(AppError::BadRequest("Pilih minimal satu metode (m1..m6)".into()));
+        return Err(AppError::BadRequest(
+            "Pilih minimal satu metode (m1..m6)".into(),
+        ));
     }
 
-    let img_row: Option<(String, String, i64, i64)> = sqlx::query_as(
-        "SELECT orig_path, work_path, width, height FROM images WHERE id = ?",
-    )
-    .bind(&req.image_id)
-    .fetch_optional(&st.pool)
-    .await
-    .map_err(|e| AppError::Internal(e.into()))?;
+    let img_row: Option<(String, String, i64, i64)> =
+        sqlx::query_as("SELECT orig_path, work_path, width, height FROM images WHERE id = ?")
+            .bind(&req.image_id)
+            .fetch_optional(&st.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
     let (orig_path, work_path, orig_w, orig_h) =
         img_row.ok_or_else(|| AppError::NotFound("Gambar tidak ditemukan".into()))?;
 
     let run_id = format!("run_{}", &generate_token()[..16]);
     let now = now_rfc3339();
-    sqlx::query("INSERT INTO runs (id, image_id, query, status, created_at) VALUES (?, ?, ?, 'running', ?)")
-        .bind(&run_id)
-        .bind(&req.image_id)
-        .bind(&query)
-        .bind(&now)
-        .execute(&st.pool)
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
+    sqlx::query(
+        "INSERT INTO runs (id, image_id, query, status, created_at) VALUES (?, ?, ?, 'running', ?)",
+    )
+    .bind(&run_id)
+    .bind(&req.image_id)
+    .bind(&query)
+    .bind(&now)
+    .execute(&st.pool)
+    .await
+    .map_err(|e| AppError::Internal(e.into()))?;
 
     for m in &methods {
         let init_status = if m == "m1" && st.heavy_semaphore.available_permits() == 0 {
@@ -193,15 +244,29 @@ pub async fn create_run(
             let work_p = PathBuf::from(&work_path);
             let w = orig_w as u32;
             let h = orig_h as u32;
+            let mid = method_id.clone();
 
-            handles.push(tokio::spawn(async move {
-                execute_single_method(&st_m, &rid, &method_id, &orig_p, &work_p, w, h, &q).await;
-            }));
+            handles.push((
+                method_id,
+                tokio::spawn(async move {
+                    execute_single_method(&st_m, &rid, &mid, &orig_p, &work_p, w, h, &q).await;
+                }),
+            ));
         }
-        for h in handles {
-            let _ = h.await;
+        for (method_id, h) in handles {
+            if let Err(join_err) = h.await {
+                let msg = if join_err.is_panic() {
+                    format!("Task metode {method_id} panicked: {join_err}")
+                } else {
+                    format!("Task metode {method_id} dibatalkan sebelum selesai")
+                };
+                tracing::error!(run_id = %run_id_orch, method = %method_id, error = %msg, "method task join error");
+                save_failure(&st_orch, &run_id_orch, &method_id, 0, &msg, json!({})).await;
+            }
         }
-        let _ = sqlx::query("UPDATE runs SET status = 'completed' WHERE id = ?")
+        let status = derive_run_status(&st_orch, &run_id_orch).await;
+        let _ = sqlx::query("UPDATE runs SET status = ? WHERE id = ?")
+            .bind(status)
             .bind(&run_id_orch)
             .execute(&st_orch.pool)
             .await;
@@ -241,7 +306,8 @@ async fn execute_single_method(
     match method_id {
         "m1" => match run_count_anything(st, work_path, orig_w, orig_h, query, run_id).await {
             Ok(ca) => {
-                let _ = render_annotated_jpeg(orig_path, &ca.points, None, &render_out);
+                let _ =
+                    render_annotated_jpeg(orig_path, &ca.points, None, &render_out, Some(query));
                 save_success(
                     st,
                     run_id,
@@ -257,7 +323,17 @@ async fn execute_single_method(
                 )
                 .await;
             }
-            Err(e) => save_failure(st, run_id, method_id, started.elapsed().as_millis() as i64, &e.to_string()).await,
+            Err(e) => {
+                save_failure(
+                    st,
+                    run_id,
+                    method_id,
+                    started.elapsed().as_millis() as i64,
+                    &e.to_string(),
+                    json!({}),
+                )
+                .await
+            }
         },
         "m2" => match run_m2_onnx(st, work_path, orig_w, orig_h, query).await {
             Ok(OnnxOutcome::Ready {
@@ -268,7 +344,13 @@ async fn execute_single_method(
                 model_size_mb,
                 mode,
             }) => {
-                let _ = render_annotated_jpeg(orig_path, &points, grid_boxes.as_deref(), &render_out);
+                let _ = render_annotated_jpeg(
+                    orig_path,
+                    &points,
+                    grid_boxes.as_deref(),
+                    &render_out,
+                    Some(query),
+                );
                 save_success(
                     st,
                     run_id,
@@ -303,10 +385,24 @@ async fn execute_single_method(
                 .execute(&st.pool)
                 .await;
             }
-            Err(e) => save_failure(st, run_id, method_id, started.elapsed().as_millis() as i64, &e.to_string()).await,
+            Err(e) => {
+                save_failure(
+                    st,
+                    run_id,
+                    method_id,
+                    started.elapsed().as_millis() as i64,
+                    &e.to_string(),
+                    json!({}),
+                )
+                .await
+            }
         },
         "m3" | "m4" | "m5" | "m6" => {
-            match run_vlm_method(&st.http, &st.cfg, method_id, work_path, orig_w, orig_h, query).await {
+            match run_vlm_method(
+                &st.http, &st.cfg, method_id, work_path, orig_w, orig_h, query,
+            )
+            .await
+            {
                 Ok(vlm) => {
                     let elapsed_ms = started.elapsed().as_millis() as i64;
                     let _ = render_annotated_jpeg(
@@ -314,6 +410,7 @@ async fn execute_single_method(
                         &vlm.points,
                         vlm.grid_boxes.as_deref(),
                         &render_out,
+                        Some(query),
                     );
                     save_success(
                         st,
@@ -330,7 +427,21 @@ async fn execute_single_method(
                     )
                     .await;
                 }
-                Err(e) => save_failure(st, run_id, method_id, started.elapsed().as_millis() as i64, &e.to_string()).await,
+                Err(e) => {
+                    let meta = match e.downcast_ref::<VlmEmptyReply>() {
+                        Some(empty) => json!({ "rawPreview": empty.preview }),
+                        None => json!({}),
+                    };
+                    save_failure(
+                        st,
+                        run_id,
+                        method_id,
+                        started.elapsed().as_millis() as i64,
+                        &e.to_string(),
+                        meta,
+                    )
+                    .await
+                }
             }
         }
         _ => {}
@@ -372,13 +483,26 @@ async fn save_success(
     .await;
 }
 
-async fn save_failure(st: &AppState, run_id: &str, method_id: &str, elapsed_ms: i64, msg: &str) {
+async fn save_failure(
+    st: &AppState,
+    run_id: &str,
+    method_id: &str,
+    elapsed_ms: i64,
+    msg: &str,
+    extra_meta: Value,
+) {
+    let mut meta = json!({ "error": msg });
+    if let (Some(dst), Some(src)) = (meta.as_object_mut(), extra_meta.as_object()) {
+        for (k, v) in src {
+            dst.insert(k.clone(), v.clone());
+        }
+    }
     let _ = sqlx::query(
         "UPDATE run_methods SET status = 'failed', elapsed_ms = ?, meta_json = ?, updated_at = ? \
          WHERE run_id = ? AND method_id = ?",
     )
     .bind(elapsed_ms)
-    .bind(json!({ "error": msg }).to_string())
+    .bind(meta.to_string())
     .bind(now_rfc3339())
     .bind(run_id)
     .bind(method_id)
@@ -388,6 +512,7 @@ async fn save_failure(st: &AppState, run_id: &str, method_id: &str, elapsed_ms: 
 
 pub async fn get_run(
     State(st): State<AppState>,
+    _session: RequireSession,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     let val = load_run_json(&st, &id)
@@ -397,11 +522,15 @@ pub async fn get_run(
     Ok(Json(val))
 }
 
-pub async fn list_runs(State(st): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    let ids: Vec<(String,)> = sqlx::query_as("SELECT id FROM runs ORDER BY created_at DESC LIMIT 20")
-        .fetch_all(&st.pool)
-        .await
-        .map_err(|e| AppError::Internal(e.into()))?;
+pub async fn list_runs(
+    State(st): State<AppState>,
+    _session: RequireSession,
+) -> Result<impl IntoResponse, AppError> {
+    let ids: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM runs ORDER BY created_at DESC LIMIT 20")
+            .fetch_all(&st.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
     let mut items = Vec::new();
     for (id,) in ids {
         if let Ok(Some(v)) = load_run_json(&st, &id).await {
@@ -413,6 +542,7 @@ pub async fn list_runs(State(st): State<AppState>) -> Result<impl IntoResponse, 
 
 pub async fn stream_run(
     State(st): State<AppState>,
+    _session: RequireSession,
     Path(id): Path<String>,
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, AppError> {
     let initial = load_run_json(&st, &id)
@@ -428,7 +558,8 @@ pub async fn stream_run(
     let live_stream = match rx_opt {
         Some(rx) => BroadcastStream::new(rx)
             .filter_map(|msg| async move {
-                msg.ok().map(|s| Ok::<Event, Infallible>(Event::default().data(s)))
+                msg.ok()
+                    .map(|s| Ok::<Event, Infallible>(Event::default().data(s)))
             })
             .boxed(),
         None => futures::stream::empty().boxed(),
@@ -439,16 +570,16 @@ pub async fn stream_run(
 
 pub async fn get_rendered_image(
     State(st): State<AppState>,
+    _session: RequireSession,
     Path((id, method_id)): Path<(String, String)>,
 ) -> Result<Response, AppError> {
-    let row: Option<(Option<String>,)> = sqlx::query_as(
-        "SELECT rendered_path FROM run_methods WHERE run_id = ? AND method_id = ?",
-    )
-    .bind(&id)
-    .bind(&method_id)
-    .fetch_optional(&st.pool)
-    .await
-    .map_err(|e| AppError::Internal(e.into()))?;
+    let row: Option<(Option<String>,)> =
+        sqlx::query_as("SELECT rendered_path FROM run_methods WHERE run_id = ? AND method_id = ?")
+            .bind(&id)
+            .bind(&method_id)
+            .fetch_optional(&st.pool)
+            .await
+            .map_err(|e| AppError::Internal(e.into()))?;
 
     let path_str = row
         .and_then(|r| r.0)

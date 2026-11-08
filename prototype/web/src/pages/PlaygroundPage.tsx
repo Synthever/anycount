@@ -48,6 +48,9 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
   const [activeRun, setActiveRun] = useState<RunDetail | null>(null);
   const [recentRuns, setRecentRuns] = useState<RunDetail[]>([]);
   const [showHistory, setShowHistory] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [streamStalled, setStreamStalled] = useState<boolean>(false);
 
   const [running, setRunning] = useState<boolean>(false);
   const [uploading, setUploading] = useState<boolean>(false);
@@ -77,27 +80,42 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
       })
       .catch(() => {});
 
-    api
-      .listRuns()
-      .then((res) => {
-        setRecentRuns(res.runs);
-        if (res.runs.length > 0) {
-          setActiveRun(res.runs[0]);
-        }
-      })
-      .catch(() => {});
-
     return () => {
       unsubRef.current?.();
     };
   }, []);
 
   const refreshHistory = () => {
+    if (!unlocked) {
+      setRecentRuns([]);
+      setHistoryError(null);
+      return;
+    }
+    setHistoryLoading(true);
     api
       .listRuns()
-      .then((res) => setRecentRuns(res.runs))
-      .catch(() => {});
+      .then((res) => {
+        setRecentRuns(res.runs);
+        setHistoryError(null);
+      })
+      .catch((err) => {
+        const status = (err as { status?: number })?.status;
+        setRecentRuns([]);
+        setHistoryError(
+          status === 401
+            ? "Sesi terkunci. Masukkan passcode untuk melihat riwayat run."
+            : "Gagal memuat riwayat run. Coba lagi sebentar lagi."
+        );
+      })
+      .finally(() => setHistoryLoading(false));
   };
+
+  // Runs (and their point data) are session-gated: never fetch while locked
+  // and never auto-open the newest run on mount.
+  useEffect(() => {
+    refreshHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlocked]);
 
   const handleSelectSample = (sample: SamplePreset) => {
     setSelectedImageId(sample.id);
@@ -155,6 +173,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
 
     unsubRef.current?.();
     setRunning(true);
+    setStreamStalled(false);
     setBanner(null);
 
     try {
@@ -162,13 +181,18 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
       setActiveRun(created);
       refreshHistory();
 
-      unsubRef.current = api.subscribeRun(created.runId, (updated) => {
-        setActiveRun(updated);
-        if (updated.status === "completed") {
-          setRunning(false);
-          refreshHistory();
-        }
-      });
+      unsubRef.current = api.subscribeRun(
+        created.runId,
+        (updated) => {
+          setActiveRun(updated);
+          if (["completed", "partial", "failed"].includes(updated.status)) {
+            setRunning(false);
+            setStreamStalled(false);
+            refreshHistory();
+          }
+        },
+        (stalled) => setStreamStalled(stalled)
+      );
     } catch (err) {
       setRunning(false);
       const status = (err as { status?: number })?.status;
@@ -308,6 +332,20 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {streamStalled && running && (
+              <span
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-mono-tech"
+                style={{
+                  backgroundColor: "rgba(232, 185, 74, 0.18)",
+                  color: "var(--brand-ochre)",
+                  border: "1px solid var(--brand-ochre)",
+                }}
+                title="Koneksi SSE terputus; browser mencoba menyambung ulang otomatis."
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>SSE stalled — reconnecting…</span>
+              </span>
+            )}
             <button
               type="button"
               onClick={handleSubmitRun}
@@ -375,6 +413,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
               <MethodResultCard
                 key={`${activeRun.runId}-${m.methodId}`}
                 result={m}
+                runId={activeRun.runId}
                 imageUrl={activeRun.imageUrl}
                 imageWidth={activeRun.imageWidth}
                 imageHeight={activeRun.imageHeight}
@@ -446,7 +485,20 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
               </button>
             </div>
 
-            {recentRuns.length === 0 ? (
+            {!unlocked ? (
+              <p className="text-xs leading-relaxed" style={{ color: "var(--muted-text)" }}>
+                🔒 Sesi masih terkunci. Masukkan passcode lewat tombol di kanan atas
+                untuk melihat riwayat run.
+              </p>
+            ) : historyError ? (
+              <p className="text-xs leading-relaxed" style={{ color: "var(--status-danger)" }}>
+                {historyError}
+              </p>
+            ) : historyLoading ? (
+              <p className="text-xs" style={{ color: "var(--muted-text)" }}>
+                Memuat riwayat…
+              </p>
+            ) : recentRuns.length === 0 ? (
               <p className="text-xs" style={{ color: "var(--muted-text)" }}>
                 Belum ada riwayat pengujian.
               </p>

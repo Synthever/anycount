@@ -12,6 +12,7 @@ import hashlib
 import json
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 
 DB_PATH = Path("/root/.local/share/vpsdash/vpsdash.db")
@@ -83,12 +84,21 @@ def main() -> None:
             tmp_caddy = Path("/etc/caddy/Caddyfile.anycount.tmp")
             tmp_caddy.write_text(rendered, encoding="utf-8")
 
-            subprocess.run(
-                ["/usr/bin/caddy", "validate", "--config", str(tmp_caddy), "--adapter", "caddyfile"],
-                check=True,
-            )
-            tmp_caddy.replace(CADDYFILE)
-            subprocess.run(["systemctl", "reload", "caddy"], check=True)
+            backup = CADDYFILE.read_bytes() if CADDYFILE.exists() else None
+            try:
+                subprocess.run(
+                    ["/usr/bin/caddy", "validate", "--config", str(tmp_caddy), "--adapter", "caddyfile"],
+                    check=True,
+                )
+                tmp_caddy.replace(CADDYFILE)
+                subprocess.run(["systemctl", "reload", "caddy"], check=True)
+            except (subprocess.CalledProcessError, OSError) as exc:
+                # Never leave Caddy running with a half-applied config.
+                if backup is not None:
+                    CADDYFILE.write_bytes(backup)
+                    print(f"validate/reload failed ({exc}); restored previous Caddyfile", file=sys.stderr)
+                tmp_caddy.unlink(missing_ok=True)
+                raise SystemExit(1) from exc
 
             digest = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
             cur.execute(

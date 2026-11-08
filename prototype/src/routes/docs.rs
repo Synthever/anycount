@@ -21,9 +21,9 @@ pub async fn get_docs() -> Json<Value> {
                 "name": "Offline ONNX Pack + LLM Validator",
                 "badge": "On-Device + Flywheel",
                 "color": "mint",
-                "speed": "0.14s - 0.21s (Offline)",
+                "speed": "0.15s sparse / 0.54s dense 2x2 (Offline)",
                 "footprint": "2.89 MB per objek (.onnx INT8)",
-                "summary": "Aplikasi mengunduh bobot ringan .onnx sesuai objek yang dicari (mis. apel 2.89 MB), menghitung instan tanpa internet, lalu divalidasi & dilatih ulang otomatis oleh Guru LLM.",
+                "summary": "Aplikasi mengunduh bobot ringan .onnx sesuai objek yang dicari (mis. apel 2.89 MB), menghitung instan tanpa internet, lalu divalidasi & dilatih ulang otomatis oleh Guru LLM. Pada foto uji apples (GT 289), pack v2 terukur 289 titik lewat mode 2x2 tiled (MAPE 0%, 0.54s) — angka satu sampel, bukan jaminan umum.",
                 "bestFor": "Kategori benda populer yang sering dihitung berulang kali dengan biaya server Rp 0."
             },
             {

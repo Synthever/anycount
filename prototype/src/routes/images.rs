@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use axum::{
     body::Body,
     extract::{Multipart, Path, State},
@@ -8,6 +7,7 @@ use axum::{
 };
 use image::imageops::FilterType;
 use serde_json::json;
+use std::path::PathBuf;
 
 use crate::{
     auth::{generate_token, now_rfc3339, RequireSession},
@@ -46,14 +46,33 @@ pub async fn upload(
     }
 
     let raw = file_bytes.ok_or_else(|| AppError::BadRequest("Field 'file' wajib diisi".into()))?;
-    let decoded = image::load_from_memory(&raw)
+    // Bound decoder work before touching memory: arbitrary uploads must not be
+    // able to ask for a 100k x 100k RGB buffer.
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(raw.as_slice()))
+        .with_guessed_format()
+        .map_err(|e| AppError::BadRequest(format!("Format gambar tidak didukung: {e}")))?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(8192);
+    limits.max_image_height = Some(8192);
+    limits.max_alloc = Some(512 * 1024 * 1024);
+    reader.limits(limits);
+    let decoded = reader
+        .decode()
         .map_err(|e| AppError::BadRequest(format!("Format gambar tidak didukung: {e}")))?;
     let rgb = decoded.to_rgb8();
     let (w, h) = rgb.dimensions();
 
     let id = format!("img_{}", &generate_token()[..16]);
-    let orig_path = st.cfg.data_dir.join("uploads").join(format!("{id}_orig.jpg"));
-    let work_path = st.cfg.data_dir.join("uploads").join(format!("{id}_work.jpg"));
+    let orig_path = st
+        .cfg
+        .data_dir
+        .join("uploads")
+        .join(format!("{id}_orig.jpg"));
+    let work_path = st
+        .cfg
+        .data_dir
+        .join("uploads")
+        .join(format!("{id}_work.jpg"));
 
     save_jpeg(&rgb, &orig_path, 92)?;
     let max_side = w.max(h);
@@ -92,12 +111,11 @@ pub async fn get_raw(
     State(st): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Response, AppError> {
-    let row: Option<(String,)> =
-        sqlx::query_as("SELECT orig_path FROM images WHERE id = ?")
-            .bind(&id)
-            .fetch_optional(&st.pool)
-            .await
-            .map_err(|e| AppError::Internal(e.into()))?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT orig_path FROM images WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&st.pool)
+        .await
+        .map_err(|e| AppError::Internal(e.into()))?;
 
     let (path_str,) = row.ok_or_else(|| AppError::NotFound("Gambar tidak ditemukan".into()))?;
     let bytes = tokio::fs::read(PathBuf::from(&path_str))

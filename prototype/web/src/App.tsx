@@ -16,14 +16,36 @@ function getPageTitle(pathname: string): string {
   return "Playground";
 }
 
+const THEME_KEY = "anycount_theme";
+
+export function applyTheme(dark: boolean) {
+  const root = document.documentElement;
+  root.classList.toggle("dark", dark);
+  root.classList.toggle("light-cream", !dark);
+}
+
+export function loadThemePreference(): boolean {
+  try {
+    const saved = window.localStorage.getItem(THEME_KEY);
+    if (saved === "cream") return false;
+    if (saved === "dark") return true;
+  } catch {
+    // private mode / storage disabled: fall through to the current class
+  }
+  return !document.documentElement.classList.contains("light-cream");
+}
+
+export function persistThemePreference(dark: boolean) {
+  try {
+    window.localStorage.setItem(THEME_KEY, dark ? "dark" : "cream");
+  } catch {
+    // ignore storage failures
+  }
+}
+
 const StudioLayout: React.FC = () => {
   const location = useLocation();
-  const [dark, setDark] = useState<boolean>(() => {
-    if (typeof document !== "undefined") {
-      return document.documentElement.classList.contains("dark");
-    }
-    return true;
-  });
+  const [dark, setDark] = useState<boolean>(() => loadThemePreference());
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [unlocked, setUnlocked] = useState<boolean>(false);
   const [unlockModalOpen, setUnlockModalOpen] = useState<boolean>(false);
@@ -40,10 +62,11 @@ const StudioLayout: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!document.documentElement.classList.contains("light-cream")) {
-      document.documentElement.classList.add("dark");
-      setDark(true);
-    }
+    applyTheme(dark);
+    persistThemePreference(dark);
+  }, [dark]);
+
+  useEffect(() => {
     api
       .getAuthStatus()
       .then((res) => setUnlocked(res.unlocked))
@@ -52,15 +75,7 @@ const StudioLayout: React.FC = () => {
   }, []);
 
   const handleToggleTheme = () => {
-    const nextDark = !dark;
-    setDark(nextDark);
-    if (nextDark) {
-      document.documentElement.classList.add("dark");
-      document.documentElement.classList.remove("light-cream");
-    } else {
-      document.documentElement.classList.remove("dark");
-      document.documentElement.classList.add("light-cream");
-    }
+    setDark((prev) => !prev);
   };
 
   const handleLogout = async () => {

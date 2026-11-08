@@ -55,6 +55,7 @@ export interface ModelPack {
   trainedEpochs: number;
   valMapePct: number | null;
   status: "ready" | "training" | "failed";
+  trainingInFlight?: boolean;
   updatedAt: string;
   downloadUrl: string;
 }
@@ -102,12 +103,6 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ passcode }),
     }),
-  unlockPasscode: (passcode: string) =>
-    reqJson<{ unlocked: boolean }>("/api/auth/unlock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passcode }),
-    }),
   logout: () => reqJson<{ unlocked: boolean }>("/api/auth/logout", { method: "POST" }),
   uploadImage: (file: File) => {
     const fd = new FormData();
@@ -120,7 +115,7 @@ export const api = {
   getSamples: () => reqJson<{ samples: SamplePreset[]; montages: MontageItem[] }>("/api/samples"),
   getPacks: () => reqJson<{ packs: ModelPack[] }>("/api/packs"),
   trainPack: (imageId: string, query: string) =>
-    reqJson<{ slug: string; status: string }>("/api/packs/train", {
+    reqJson<{ slug: string; status: string; packStatusUnchanged?: boolean }>("/api/packs/train", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageId, query }),
@@ -134,20 +129,32 @@ export const api = {
     }),
   listRuns: () => reqJson<{ runs: RunDetail[] }>("/api/runs"),
   getRun: (runId: string) => reqJson<RunDetail>(`/api/runs/${runId}`),
-  subscribeRun: (runId: string, onUpdate: (run: RunDetail) => void): (() => void) => {
+  subscribeRun: (
+    runId: string,
+    onUpdate: (run: RunDetail) => void,
+    onStalled?: (stalled: boolean) => void
+  ): (() => void) => {
     const es = new EventSource(`/api/runs/${runId}/stream`);
+    es.onopen = () => onStalled?.(false);
     es.onmessage = (ev) => {
       try {
         const parsed = JSON.parse(ev.data) as RunDetail;
         onUpdate(parsed);
-        if (parsed.status === "completed") {
+        onStalled?.(false);
+        if (["completed", "partial", "failed"].includes(parsed.status)) {
           es.close();
         }
       } catch {
         // ignore malformed keepalive
       }
     };
-    es.onerror = () => es.close();
+    // A transient drop must not silently kill live updates: EventSource
+    // reconnects on its own, so only surface a stalled state.
+    es.onerror = () => {
+      if (es.readyState !== EventSource.CLOSED) {
+        onStalled?.(true);
+      }
+    };
     return () => es.close();
   },
 };

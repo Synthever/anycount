@@ -58,9 +58,10 @@ export const ModelPacksPage: React.FC<ModelPacksPageProps> = ({
       .catch(() => {});
   }, []);
 
-  // Poll every 4 seconds if any pack is currently training
+  // Poll every 4 seconds while a pack is training or a re-train is in flight
+  // (ready packs keep status 'ready' while a new artifact is being distilled).
   useEffect(() => {
-    const hasTraining = packs.some((p) => p.status === "training");
+    const hasTraining = packs.some((p) => p.status === "training" || p.trainingInFlight);
     if (!hasTraining) return;
     const t = setInterval(loadData, 4000);
     return () => clearInterval(t);
@@ -117,7 +118,7 @@ export const ModelPacksPage: React.FC<ModelPacksPageProps> = ({
             className="text-xs mt-1 max-w-2xl leading-relaxed"
             style={{ color: "var(--muted-text)" }}
           >
-            Setiap objek yang sering dihitung dikemas menjadi file <code>.onnx</code> INT8 berukuran ~2.89 MB. Aplikasi mengunduh pack sesuai kebutuhan dan menghitung dalam 0.14–0.21 detik secara offline.
+            Setiap objek yang sering dihitung dikemas menjadi file <code>.onnx</code> INT8 berukuran ~2.89 MB. Aplikasi mengunduh pack sesuai kebutuhan dan menghitung offline: ~0.15 detik untuk foto jarang dan ~0.54 detik (mode 2x2 tiled) untuk foto padat.
           </p>
         </div>
 
@@ -369,6 +370,12 @@ export const ModelPacksPage: React.FC<ModelPacksPageProps> = ({
             )}
             <span>{message.text}</span>
           </div>
+        )}
+        {packs.some((p) => p.trainingInFlight) && (
+          <p className="text-[11px] font-mono-tech" style={{ color: "var(--brand-ochre)" }}>
+            Re-train berjalan di background; pack lama tetap melayani M2 sampai
+            artefak .onnx baru selesai.
+          </p>
         )}
       </div>
     </div>

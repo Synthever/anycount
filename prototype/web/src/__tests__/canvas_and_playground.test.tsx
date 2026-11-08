@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import { applyCanvasClick, pointerToImagePoint } from "../components/InteractiveCanvas";
 import { MethodResultCard } from "../components/MethodResultCard";
 import { Composer } from "../components/Composer";
@@ -115,7 +115,6 @@ describe("MethodResultCard live count after SSE updates", () => {
     imageHeight: 600,
     query: "coins",
   };
-
   it("shows the completed server count (24) in the Raw drawer instead of the queued 0", () => {
     const queued: MethodResult = {
       methodId: "m3",
@@ -153,5 +152,98 @@ describe("MethodResultCard live count after SSE updates", () => {
     expect(raw.status).toBe("completed");
     expect(raw.count).toBe(24);
     expect(raw.manualDelta).toBe(0);
+  });
+});
+
+describe("manual dot edits survive background SSE snapshots", () => {
+  const canvasProps = {
+    imageUrl: "/api/images/sample_coins/raw",
+    imageWidth: 800,
+    imageHeight: 600,
+  };
+  const rect = {
+    left: 0,
+    top: 0,
+    width: 800,
+    height: 600,
+    right: 800,
+    bottom: 600,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  } as DOMRect;
+
+  beforeAll(() => {
+    vi.spyOn(HTMLImageElement.prototype, "getBoundingClientRect").mockReturnValue(rect);
+  });
+
+  afterAll(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the manual count when an SSE frame re-sends the same points, and resets only on identity change", () => {
+    const completed: MethodResult = {
+      methodId: "m2",
+      status: "completed",
+      count: 2,
+      points: [
+        { x: 100, y: 100 },
+        { x: 300, y: 200 },
+      ],
+      gridBoxes: null,
+      elapsedMs: 140,
+      promptTokens: 0,
+      completionTokens: 0,
+      modelSizeMb: 2.89,
+      meta: { packSlug: "apple", mode: "single_640" },
+      renderedUrl: "/api/runs/run_9/render/m2",
+    };
+
+    const { container, rerender } = render(
+      <MethodResultCard result={completed} runId="run_9" {...canvasProps} query="coins" />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Edit Dots/i }));
+
+    const svg = container.querySelector('svg[viewBox="0 0 800 600"]');
+    expect(svg).toBeTruthy();
+    fireEvent.click(svg as Element, { clientX: 500, clientY: 400 });
+    expect(screen.getByText("coins: 3")).toBeTruthy();
+
+    // Background SSE snapshot for another method: same run/method/status/count,
+    // fresh points array. The manual +1 must survive.
+    rerender(
+      <MethodResultCard
+        result={{ ...completed, points: completed.points.map((p) => ({ ...p })) }}
+        runId="run_9"
+        {...canvasProps}
+        query="coins"
+      />
+    );
+    expect(screen.getByText("coins: 3")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /Raw/i }));
+    const drawer = document.querySelector("pre");
+    const rawAfterSse = JSON.parse(drawer?.textContent ?? "{}");
+    expect(rawAfterSse.count).toBe(3);
+    expect(rawAfterSse.manualDelta).toBe(1);
+
+    // A real server identity change resets edits and the delta together.
+    rerender(
+      <MethodResultCard
+        result={{
+          ...completed,
+          count: 5,
+          points: Array.from({ length: 5 }, (_, i) => ({ x: 50 + i * 40, y: 120 })),
+        }}
+        runId="run_9"
+        {...canvasProps}
+        query="coins"
+      />
+    );
+    expect(screen.getByText("coins: 5")).toBeTruthy();
+    const rawAfterReset = JSON.parse(document.querySelector("pre")?.textContent ?? "{}");
+    expect(rawAfterReset.count).toBe(5);
+    expect(rawAfterReset.manualDelta).toBe(0);
   });
 });
