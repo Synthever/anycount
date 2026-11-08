@@ -15,6 +15,7 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState::init(cfg).await?;
     routes::samples::seed_research_samples(&state).await?;
     routes::packs::seed_default_apple_pack(&state).await?;
+    routes::packs::seed_bundled_object_packs(&state).await?;
     let app = router(state);
 
     let listener = TcpListener::bind(bind_addr).await?;
