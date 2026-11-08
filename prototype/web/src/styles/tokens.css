@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #fffaf0;
+  --surface-soft: #faf5e8;
+  --surface-card: #f5f0e0;
+  --surface-strong: #ebe6d6;
+  --surface-composer: #ffffff;
+  --ink: #0a0a0a;
+  --body-text: #3a3a3a;
+  --muted-text: #6a6a6a;
+  --hairline: rgba(10, 10, 10, 0.09);
+  --hairline-strong: rgba(10, 10, 10, 0.16);
+  --nav-active-bg: #0a0a0a;
+  --nav-active-fg: #fffaf0;
+
+  --brand-pink: #ff4d8b;
+  --brand-teal: #1a3a3a;
+  --brand-lavender: #b8a4ed;
+  --brand-peach: #ffb084;
+  --brand-ochre: #e8b94a;
+  --brand-mint: #a4d4c5;
+  --brand-emerald: #16a34a;
+  --status-danger: #ef4444;
+}
+
+.dark {
+  --canvas: #0e0e10;
+  --surface-soft: #141416;
+  --surface-card: #18181b;
+  --surface-strong: #222226;
+  --surface-composer: #18181b;
+  --ink: #f4f4f5;
+  --body-text: #d4d4d8;
+  --muted-text: #8e8e98;
+  --hairline: rgba(255, 255, 255, 0.08);
+  --hairline-strong: rgba(255, 255, 255, 0.15);
+  --nav-active-bg: #f4f4f5;
+  --nav-active-fg: #0a0a0a;
+
+  --brand-emerald: #34d399;
+}
+
+body {
+  margin: 0;
+  background-color: var(--canvas);
+  color: var(--ink);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-mono-tech {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.display-head {
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
