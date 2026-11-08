@@ -34,6 +34,16 @@ pub fn router(state: state::AppState) -> Router {
             get(routes::samples::get_montage),
         )
         .route("/api/docs", get(routes::docs::get_docs))
+        .route("/api/packs", get(routes::packs::list_packs))
+        .route("/api/packs/{slug}/download", get(routes::packs::download_pack))
+        .route("/api/packs/train", post(routes::packs::train_pack))
+        .route("/api/runs", get(routes::runs::list_runs).post(routes::runs::create_run))
+        .route("/api/runs/{id}", get(routes::runs::get_run))
+        .route("/api/runs/{id}/stream", get(routes::runs::stream_run))
+        .route(
+            "/api/runs/{id}/render/{method_id}",
+            get(routes::runs::get_rendered_image),
+        )
         .fallback(assets::static_handler)
         .layer(DefaultBodyLimit::max(16 * 1024 * 1024))
         .with_state(state)
