@@ -1,0 +1,20 @@
+[Unit]
+Description=AnyCount Prototype Web Studio (Rust Axum + React)
+After=network-online.target caddy.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/workspace/anycount/prototype
+EnvironmentFile=/root/workspace/anycount/prototype/.env
+ExecStart=/root/workspace/anycount/prototype/target/release/anycount-prototype
+Restart=always
+RestartSec=2
+MemoryMax=10G
+LimitNOFILE=65535
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

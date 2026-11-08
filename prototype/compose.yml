@@ -1,0 +1,59 @@
+# AnyCount Studio — portable Docker Compose stack.
+#
+# The server refuses any non-loopback ANYCOUNT_BIND (src/config.rs), and that is exactly
+# what we want in production: Caddy reverse-proxies https://testing.rkhyg.xyz to
+# 127.0.0.1:2030. A published port (127.0.0.1:2030:2030) cannot reach a socket that is
+# bound to the *container's* loopback, so the container shares the host network namespace
+# and 127.0.0.1:2030 means the same thing inside and outside the container.
+#
+#   docker compose up -d --build
+#   curl -s http://127.0.0.1:2030/api/health
+#
+# If you ever relax the loopback guard in src/config.rs, replace `network_mode: host` with
+#   ports: ["127.0.0.1:2030:2030"]
+# and set ANYCOUNT_BIND: 0.0.0.0:2030 below.
+services:
+  anycount:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: node:22-bookworm-slim
+        RUST_IMAGE: rust:1.88-bookworm
+        RUNTIME_IMAGE: debian:bookworm-slim
+    image: anycount-prototype:0.1.0
+    container_name: anycount-prototype
+    restart: unless-stopped
+    network_mode: host
+    env_file:
+      - .env
+    environment:
+      ANYCOUNT_BIND: 127.0.0.1:2030
+      ANYCOUNT_DATA_DIR: /var/lib/anycount-prototype
+      ANYCOUNT_REPO_ROOT: /app/repo
+      RUST_LOG: info,anycount_prototype=info
+    volumes:
+      # SQLite DB, uploads, renders and downloaded .onnx packs.
+      - anycount-data:/var/lib/anycount-prototype
+      # Sample images, montages and research .onnx weights (read-only).
+      - ../:/app/repo:ro
+    mem_limit: 10g
+    memswap_limit: 10g
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:2030/api/health', timeout=3).status == 200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  anycount-data:
