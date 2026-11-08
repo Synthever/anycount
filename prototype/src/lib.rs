@@ -20,7 +20,10 @@ pub fn router(state: state::AppState) -> Router {
     Router::new()
         .route("/api/health", get(health))
         .route("/api/auth/status", get(routes::auth::status))
-        .route("/api/auth/unlock", post(routes::auth::unlock))
+        .route(
+            "/api/auth/unlock",
+            post(routes::auth::unlock).layer(DefaultBodyLimit::max(4096)),
+        )
         .route("/api/auth/logout", post(routes::auth::logout))
         .fallback(assets::static_handler)
         .layer(DefaultBodyLimit::max(16 * 1024 * 1024))
