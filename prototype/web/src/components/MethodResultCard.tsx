@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Edit3,
   Grid,
@@ -82,10 +82,13 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
   const [editMode, setEditMode] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
+  // Manual dot edits are tracked as a delta only; the server values below stay
+  // the source of truth so SSE transitions (queued -> completed) render live.
   const [manualDelta, setManualDelta] = useState(0);
-  const [effectiveCount, setEffectiveCount] = useState<number>(
-    result.count ?? result.points.length
-  );
+
+  useEffect(() => {
+    setManualDelta(0);
+  }, [result.status, result.count, result.points.length]);
 
   const info = METHOD_CATALOG[result.methodId] ?? {
     code: result.methodId.toUpperCase(),
@@ -98,9 +101,10 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
     result.elapsedMs != null ? `${(result.elapsedMs / 1000).toFixed(2)}s` : "—";
 
   const hasGridBoxes = Boolean(result.gridBoxes && result.gridBoxes.length > 0);
-  const baseCount = result.count ?? result.points.length;
-  const shownCount =
-    result.status === "completed" ? baseCount + manualDelta : result.count ?? 0;
+  // Live count = server truth for the current render + manual dot edits only.
+  const serverCount = result.count ?? result.points.length;
+  const effectiveCount =
+    result.status === "completed" ? Math.max(0, serverCount + manualDelta) : serverCount;
 
   return (
     <div
@@ -412,8 +416,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
               editMode={editMode}
               showGrid={showGrid}
               methodId={result.methodId}
-              onPointsChange={(pts, delta) => {
-                setEffectiveCount(pts.length);
+              onPointsChange={(_pts, delta) => {
                 setManualDelta(delta);
               }}
             />
@@ -485,7 +488,7 @@ export const MethodResultCard: React.FC<MethodResultCardProps> = ({
         }}
       >
         <span>
-          {elapsedSec} · {shownCount} objects
+          {elapsedSec} · {effectiveCount} objects
           {manualDelta !== 0
             ? ` (${manualDelta > 0 ? `+${manualDelta}` : manualDelta} manual)`
             : ""}{" "}

@@ -29,6 +29,40 @@ export function applyCanvasClick(
   };
 }
 
+export interface RectLike {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Map a pointer event (client coordinates) onto the source-image coordinate
+ * space. The rect passed in must be the rendered <img> box, which is exactly
+ * the painted image because the image is not letterboxed by `object-contain`.
+ * Result is clamped to [0, imageWidth] x [0, imageHeight].
+ */
+export function pointerToImagePoint(
+  rect: RectLike,
+  clientX: number,
+  clientY: number,
+  imageWidth: number,
+  imageHeight: number
+): { x: number; y: number; hitRadiusPx: number } {
+  const w = imageWidth > 0 ? imageWidth : 1;
+  const h = imageHeight > 0 ? imageHeight : 1;
+  const safeW = rect.width > 0 ? rect.width : w;
+  const safeH = rect.height > 0 ? rect.height : h;
+  const scaleX = w / safeW;
+  const scaleY = h / safeH;
+  return {
+    x: Math.min(w, Math.max(0, (clientX - rect.left) * scaleX)),
+    y: Math.min(h, Math.max(0, (clientY - rect.top) * scaleY)),
+    // Screen px -> image px for the 14px hit radius, using the looser axis.
+    hitRadiusPx: 14 * Math.max(scaleX, scaleY),
+  };
+}
+
 interface InteractiveCanvasProps {
   imageUrl: string;
   imageWidth: number;
@@ -86,17 +120,26 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
   };
 
   const handleSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!editMode || !svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
+    if (!editMode) return;
+    // Measure the rendered <img> box: the overlay is sized to the image, so the
+    // image rect (not the outer frame) is the authoritative click surface.
+    const imgRect = imgRef.current?.getBoundingClientRect();
+    const fallbackRect = svgRef.current?.getBoundingClientRect();
+    const rect =
+      imgRect && imgRect.width > 0 && imgRect.height > 0 ? imgRect : fallbackRect;
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
 
-    const scaleX = imageWidth / rect.width;
-    const scaleY = imageHeight / rect.height;
-    const clickX = (e.clientX - rect.left) * scaleX;
-    const clickY = (e.clientY - rect.top) * scaleY;
-    const hitRadiusImgPx = 14 * Math.max(scaleX, scaleY);
+    const w = imageWidth || imgRef.current?.naturalWidth || 800;
+    const h = imageHeight || imgRef.current?.naturalHeight || 600;
+    const { x: clickX, y: clickY, hitRadiusPx } = pointerToImagePoint(
+      rect,
+      e.clientX,
+      e.clientY,
+      w,
+      h
+    );
 
-    const { next } = applyCanvasClick(currentPoints, clickX, clickY, hitRadiusImgPx);
+    const { next } = applyCanvasClick(currentPoints, clickX, clickY, hitRadiusPx);
     updatePoints(next);
   };
 
@@ -168,107 +211,110 @@ export const InteractiveCanvas: React.FC<InteractiveCanvasProps> = ({
 
   return (
     <div className="space-y-2">
-      {/* Interactive Image + SVG Overlay Container */}
-      <div
-        className="relative w-full overflow-hidden rounded-xl select-none"
-        style={{
-          backgroundColor: "#09090b",
-          border: editMode
-            ? "2px solid var(--brand-pink)"
-            : "1px solid var(--hairline)",
-        }}
-      >
-        <img
-          ref={imgRef}
-          src={imageUrl}
-          alt={query}
-          crossOrigin="anonymous"
-          className="w-full h-auto block max-h-[520px] object-contain mx-auto"
-        />
-
-        {/* SVG Overlay aligned with image coordinate space */}
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${imageWidth || 800} ${imageHeight || 600}`}
-          onClick={handleSvgClick}
-          className={`absolute inset-0 w-full h-full ${
-            editMode ? "cursor-crosshair" : "cursor-default"
-          }`}
-          preserveAspectRatio="xMidYMid meet"
-        >
-          {/* 2x2 Grid Overlay */}
-          {showGrid &&
-            gridBoxes &&
-            gridBoxes.map(([x1, y1, x2, y2], idx) => (
-              <g key={`grid-${idx}`}>
-                <rect
-                  x={x1}
-                  y={y1}
-                  width={Math.max(0, x2 - x1)}
-                  height={Math.max(0, y2 - y1)}
-                  fill="none"
-                  stroke="#b8a4ed"
-                  strokeWidth={Math.max(2, Math.round(dotRadius * 0.45))}
-                  strokeDasharray="10 6"
-                  opacity={0.9}
-                />
-              </g>
-            ))}
-
-          {/* Count-Anything Red-White Dots */}
-          {currentPoints.map((pt, idx) => (
-            <circle
-              key={`pt-${idx}-${pt.x}-${pt.y}`}
-              cx={pt.x}
-              cy={pt.y}
-              r={dotRadius}
-              fill="#e62823"
-              stroke="#ffffff"
-              strokeWidth={strokeW}
-            />
-          ))}
-        </svg>
-
-        {/* Top-Left Dark Translucent Counter Badge */}
+      {/* Image + SVG overlay. The inner box shrink-wraps the rendered <img>, so the
+          overlay is exactly the size of the picture (no object-contain letterbox). */}
+      <div className="w-full flex justify-center">
         <div
-          className="absolute top-3 left-3 px-2.5 py-1 rounded-lg font-mono-tech text-xs font-semibold flex items-center gap-2 pointer-events-none"
+          className="relative inline-block max-w-full overflow-hidden rounded-xl select-none"
           style={{
-            backgroundColor: "rgba(10, 10, 12, 0.82)",
-            color: "#ffffff",
-            border: "1px solid rgba(255, 255, 255, 0.16)",
+            backgroundColor: "#09090b",
+            border: editMode
+              ? "2px solid var(--brand-pink)"
+              : "1px solid var(--hairline)",
           }}
         >
-          <span className="inline-block w-2 h-2 rounded-full bg-[#e62823] ring-1 ring-white" />
-          <span>
-            {query}: {effectiveCount}
-          </span>
-          {manualDelta !== 0 && (
-            <span
-              className="text-[11px] px-1.5 py-0.5 rounded"
-              style={{
-                backgroundColor: "rgba(255, 77, 139, 0.25)",
-                color: "#ff85b3",
-              }}
-            >
-              {manualDelta > 0 ? `+${manualDelta}` : manualDelta} manual
-            </span>
-          )}
-        </div>
+          <img
+            ref={imgRef}
+            src={imageUrl}
+            alt={query}
+            crossOrigin="anonymous"
+            className="block w-auto h-auto max-w-full max-h-[520px]"
+          />
 
-        {/* Edit Mode Floating Pill */}
-        {editMode && (
+          {/* SVG Overlay aligned with image coordinate space */}
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${imageWidth || 800} ${imageHeight || 600}`}
+            onClick={handleSvgClick}
+            className={`absolute inset-0 w-full h-full ${
+              editMode ? "cursor-crosshair" : "cursor-default"
+            }`}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            {/* 2x2 Grid Overlay */}
+            {showGrid &&
+              gridBoxes &&
+              gridBoxes.map(([x1, y1, x2, y2], idx) => (
+                <g key={`grid-${idx}`}>
+                  <rect
+                    x={x1}
+                    y={y1}
+                    width={Math.max(0, x2 - x1)}
+                    height={Math.max(0, y2 - y1)}
+                    fill="none"
+                    stroke="#b8a4ed"
+                    strokeWidth={Math.max(2, Math.round(dotRadius * 0.45))}
+                    strokeDasharray="10 6"
+                    opacity={0.9}
+                  />
+                </g>
+              ))}
+
+            {/* Count-Anything Red-White Dots */}
+            {currentPoints.map((pt, idx) => (
+              <circle
+                key={`pt-${idx}-${pt.x}-${pt.y}`}
+                cx={pt.x}
+                cy={pt.y}
+                r={dotRadius}
+                fill="#e62823"
+                stroke="#ffffff"
+                strokeWidth={strokeW}
+              />
+            ))}
+          </svg>
+
+          {/* Top-Left Dark Translucent Counter Badge */}
           <div
-            className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5 pointer-events-none"
+            className="absolute top-3 left-3 px-2.5 py-1 rounded-lg font-mono-tech text-xs font-semibold flex items-center gap-2 pointer-events-none"
             style={{
-              backgroundColor: "rgba(10, 10, 12, 0.85)",
-              color: "#fffaf0",
-              border: "1px solid var(--brand-pink)",
+              backgroundColor: "rgba(10, 10, 12, 0.82)",
+              color: "#ffffff",
+              border: "1px solid rgba(255, 255, 255, 0.16)",
             }}
           >
-            <MousePointerClick className="w-3.5 h-3.5 text-[#ff4d8b]" />
-            <span>Klik ruang kosong: +1 titik · Klik titik merah (radius 14px): -1 hapus</span>
+            <span className="inline-block w-2 h-2 rounded-full bg-[#e62823] ring-1 ring-white" />
+            <span>
+              {query}: {effectiveCount}
+            </span>
+            {manualDelta !== 0 && (
+              <span
+                className="text-[11px] px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: "rgba(255, 77, 139, 0.25)",
+                  color: "#ff85b3",
+                }}
+              >
+                {manualDelta > 0 ? `+${manualDelta}` : manualDelta} manual
+              </span>
+            )}
           </div>
-        )}
+
+          {/* Edit Mode Floating Pill */}
+          {editMode && (
+            <div
+              className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5 pointer-events-none"
+              style={{
+                backgroundColor: "rgba(10, 10, 12, 0.85)",
+                color: "#fffaf0",
+                border: "1px solid var(--brand-pink)",
+              }}
+            >
+              <MousePointerClick className="w-3.5 h-3.5 text-[#ff4d8b]" />
+              <span>Klik ruang kosong: +1 titik · Klik titik merah (radius 14px): -1 hapus</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Edit Mode Toolbar (Undo / Reset / Export Edited JPG) */}
