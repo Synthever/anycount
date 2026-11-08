@@ -117,6 +117,18 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked]);
 
+  // A fetched run carries points and a render URL. Logging out must not leave
+  // that result on screen for the next viewer of the kiosk.
+  useEffect(() => {
+    if (!unlocked) {
+      unsubRef.current?.();
+      unsubRef.current = null;
+      setActiveRun(null);
+      setRunning(false);
+      setStreamStalled(false);
+    }
+  }, [unlocked]);
+
   const handleSelectSample = (sample: SamplePreset) => {
     setSelectedImageId(sample.id);
     setSelectedImageLabel(sample.filename);

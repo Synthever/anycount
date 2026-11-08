@@ -1,8 +1,13 @@
 use serde_json::Value;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tokio::process::Command;
 
 use crate::{services::renderer::Point2D, state::AppState};
+
+/// M1 and train are both bounded; M2 must be too, or a wedged ONNX runtime
+/// keeps an HTTP request (and a Python process) alive forever.
+const M2_INFER_TIMEOUT_SECS: u64 = 120;
 
 pub enum OnnxOutcome {
     Ready {
@@ -71,20 +76,29 @@ pub async fn run_m2_onnx(
         });
     };
 
-    let out = Command::new(&st.cfg.onnx_python_bin)
-        .env_remove("PYTHONPATH")
-        .arg("workers/onnx_worker.py")
-        .arg("infer")
-        .arg("--onnx")
-        .arg(&onnx_path)
-        .arg("--image")
-        .arg(work_img)
-        .arg("--orig-width")
-        .arg(orig_w.to_string())
-        .arg("--orig-height")
-        .arg(orig_h.to_string())
-        .output()
-        .await?;
+    let out = tokio::time::timeout(
+        Duration::from_secs(M2_INFER_TIMEOUT_SECS),
+        Command::new(&st.cfg.onnx_python_bin)
+            .env_remove("PYTHONPATH")
+            .arg("workers/onnx_worker.py")
+            .arg("infer")
+            .arg("--onnx")
+            .arg(&onnx_path)
+            .arg("--image")
+            .arg(work_img)
+            .arg("--orig-width")
+            .arg(orig_w.to_string())
+            .arg("--orig-height")
+            .arg(orig_h.to_string())
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    .map_err(|_| {
+        anyhow::anyhow!(
+            "ONNX inference timeout setelah {M2_INFER_TIMEOUT_SECS} detik (proses dibunuh)"
+        )
+    })??;
 
     if !out.status.success() {
         let err = String::from_utf8_lossy(&out.stderr);

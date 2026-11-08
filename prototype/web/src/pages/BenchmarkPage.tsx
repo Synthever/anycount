@@ -127,14 +127,14 @@ const BENCHMARK_TABLE: BenchmarkRow[] = [
   {
     scenario: "apples.jpg",
     query: "apples (Dense Pile)",
-    gt: "~289–339",
+    gt: "289",
     m1: "339 (23.0s)",
-    m2: "290 (0.21s INT8!)",
+    m2: "289 (0.54s 2x2)",
     m3: "289 (39.94s)",
     m4: "336 (21.09s)",
     m5: "825 (loop)",
     m6: "336 (5.60s)",
-    winner: "M2 (0.21s) & M6 (5.6s)",
+    winner: "M2 (0.54s tiled) & M6 (5.6s)",
   },
 ];
 
@@ -164,7 +164,10 @@ export const BenchmarkPage: React.FC = () => {
             Benchmark Gallery — 6 Counting Methods Across 10 Test Images
           </h1>
           <p className="text-xs mt-1 max-w-3xl leading-relaxed" style={{ color: "var(--muted-text)" }}>
-            Hasil pengujian terukur dari repositori riset AnyCount tanpa perlu menjalankan ulang inferensi. Klik gambar montage untuk memperbesar dan memeriksa penempatan titik per objek.
+            Arsip benchmark riset (Spike 000–006) dari repositori riset AnyCount. Angka pada tabel di bawah adalah
+            data riset historis, bukan perilaku prototype saat ini: M2 prototype terukur 289/289 apel
+            (MAPE 0% pada satu sampel) dengan 0.15 s untuk foto jarang dan 0.54 s untuk foto padat (mode 2x2 tiled).
+            Klik gambar montage untuk memperbesar dan memeriksa penempatan titik per objek.
           </p>
         </div>
 
@@ -180,9 +183,10 @@ export const BenchmarkPage: React.FC = () => {
               <span style={{ color: "var(--brand-emerald)" }}>M2 · OFFLINE ONNX v2</span>
               <Cpu className="w-4 h-4" style={{ color: "var(--brand-emerald)" }} />
             </div>
-            <div className="text-xl font-bold font-mono-tech">0.14s – 0.21s · 2.33% MAPE</div>
+            <div className="text-xl font-bold font-mono-tech">0.15s sparse · 0.54s dense · 0% MAPE</div>
             <p className="text-[11px]" style={{ color: "var(--muted-text)" }}>
-              Paket model <code>apple_v2_distilled_int8.onnx</code> (2.89 MB) menghitung 290 apel 168× lebih cepat dari VLM Cloud dengan biaya server Rp 0.
+              Paket model <code>apple_v2_distilled_int8.onnx</code> (2.89 MB) menghitung 289 apel dari GT 289
+              (MAPE 0% pada satu sampel uji) dalam 0.54 s mode 2x2 tiled, tanpa internet dan biaya server Rp 0.
             </p>
           </div>
 
@@ -236,6 +240,13 @@ export const BenchmarkPage: React.FC = () => {
         >
           <span className="text-xs font-semibold">
             Tabel Perbandingan Kuantitatif 6 Metode pada 10 Gambar Uji
+            <span
+              className="ml-2 font-mono-tech text-[10px] uppercase px-1.5 py-0.5 rounded"
+              style={{ backgroundColor: "var(--surface-strong)", color: "var(--muted-text)" }}
+              title="Angka 0.21 s / 290 apel / 2.33% MAPE adalah arsip riset pra-prototype; prototype terukur 289/289 pada 0.54 s tiled."
+            >
+              Data riset historis
+            </span>
           </span>
           <span className="font-mono-tech text-[11px]" style={{ color: "var(--muted-text)" }}>
             Format: Count (Latency)

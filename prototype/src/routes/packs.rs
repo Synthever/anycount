@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
 use serde::Deserialize;
 use serde_json::json;
@@ -29,6 +30,52 @@ struct TrainJob;
 /// In-flight auto-train jobs keyed by pack slug. Kept outside `model_packs`
 /// because a ready pack must keep serving while a new artifact is distilled.
 static TRAIN_JOBS: LazyLock<DashMap<String, TrainJob>> = LazyLock::new(DashMap::new);
+
+/// Claims the single train slot for `slug`, or `None` when another call already
+/// owns it. The check and the insert happen inside one `DashMap` entry lock, so
+/// two concurrent `/api/packs/train` calls can never both win and clobber the
+/// same `tmp_onnx`.
+fn claim_train_slot(slug: &str) -> Option<TrainJobGuard> {
+    match TRAIN_JOBS.entry(slug.to_string()) {
+        Entry::Occupied(_) => None,
+        Entry::Vacant(slot) => {
+            slot.insert(TrainJob);
+            Some(TrainJobGuard {
+                slug: slug.to_string(),
+            })
+        }
+    }
+}
+
+/// Releases the train slot on every exit path — early `?`, task completion or
+/// panic. Without it an aborted request would leave the slug `409` forever.
+struct TrainJobGuard {
+    slug: String,
+}
+
+impl Drop for TrainJobGuard {
+    fn drop(&mut self) {
+        TRAIN_JOBS.remove(&self.slug);
+    }
+}
+
+/// Removes a per-job scratch directory when the job ends, whatever the outcome
+/// (success, worker error, timeout or panic). A timed-out train used to leave
+/// `data/tmp/train_<slug>/` behind for good.
+struct TempDirGuard(PathBuf);
+
+impl Drop for TempDirGuard {
+    fn drop(&mut self) {
+        let path = self.0.clone();
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(async move {
+                let _ = tokio::fs::remove_dir_all(&path).await;
+            });
+        } else if !path.as_os_str().is_empty() {
+            let _ = std::fs::remove_dir_all(&path);
+        }
+    }
+}
 
 pub async fn seed_default_apple_pack(st: &AppState) -> anyhow::Result<()> {
     let apple_onnx = st
@@ -133,11 +180,13 @@ pub async fn train_pack(
             "Query objek tidak boleh kosong".into(),
         ));
     }
-    if TRAIN_JOBS.contains_key(&slug) {
+    // Atomic check-and-claim: the second concurrent request for the same slug
+    // gets a 409 instead of spawning a second worker over the same tmp file.
+    let Some(job_guard) = claim_train_slot(&slug) else {
         return Err(AppError::Conflict(
             "Auto-train untuk pack ini masih berjalan".into(),
         ));
-    }
+    };
 
     let img_row: Option<(String, i64, i64)> =
         sqlx::query_as("SELECT work_path, width, height FROM images WHERE id = ?")
@@ -192,12 +241,13 @@ pub async fn train_pack(
             .map_err(|e| AppError::Internal(e.into()))?;
     }
 
-    TRAIN_JOBS.insert(slug.clone(), TrainJob);
-
     let st_bg = st.clone();
     let slug_bg = slug.clone();
     let query_bg = req.query.clone();
     tokio::spawn(async move {
+        // Ownership of the slot moves into the task: it is released when the
+        // task ends, including on error or panic.
+        let _job_guard = job_guard;
         let res: anyhow::Result<()> = async {
             let work_img = PathBuf::from(&work_path);
             let dim = image::image_dimensions(&work_img)?;
@@ -208,6 +258,9 @@ pub async fn train_pack(
             }
             let tmp_dir = st_bg.cfg.data_dir.join("tmp").join(format!("train_{slug_bg}"));
             tokio::fs::create_dir_all(&tmp_dir).await?;
+            // Guard, not a plain call: a timeout, worker failure or panic must
+            // not leave the dataset directory behind under data/tmp.
+            let _tmp_guard = TempDirGuard(tmp_dir.clone());
             let pts_file = tmp_dir.join("teacher_points.json");
             tokio::fs::write(&pts_file, serde_json::to_vec(&json!({ "points": teacher.points }))?).await?;
 
@@ -243,7 +296,6 @@ pub async fn train_pack(
                     "onnx_worker train timeout setelah {TRAIN_TIMEOUT_SECS} detik (proses dibunuh)"
                 )
             })??;
-            let _ = tokio::fs::remove_dir_all(&tmp_dir).await;
             if !out.status.success() {
                 anyhow::bail!("onnx_worker train failed");
             }
@@ -297,10 +349,72 @@ pub async fn train_pack(
                 }
             }
         }
-        TRAIN_JOBS.remove(&slug_bg);
     });
 
     Ok(Json(
         json!({ "slug": slug, "status": "training", "packStatusUnchanged": keep_serving }),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn claim_train_slot_is_insert_if_absent_and_released_on_drop() {
+        let slug = "unit_claim_slot_pack";
+        let first = claim_train_slot(slug).expect("first claim wins an empty slot");
+        assert!(claim_train_slot(slug).is_none(), "second claim must lose");
+        drop(first);
+        assert!(
+            claim_train_slot(slug).is_some(),
+            "slot must be reusable after the guard drops"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_train_claims_yield_exactly_one_winner() {
+        let slug = "concurrent_claim_slot_pack";
+        let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(2));
+        let mut handles = Vec::new();
+        for _ in 0..2 {
+            let barrier = barrier.clone();
+            handles.push(tokio::spawn(async move {
+                barrier.wait().await;
+                // Hold the claimed slot until both callers have attempted:
+                // otherwise the first winner releases it before the second
+                // even asks, and the test would prove nothing.
+                let guard = claim_train_slot(slug);
+                let won = guard.is_some();
+                barrier.wait().await;
+                won
+            }));
+        }
+        let mut winners = 0;
+        for handle in handles {
+            if handle.await.unwrap() {
+                winners += 1;
+            }
+        }
+        assert_eq!(winners, 1, "exactly one concurrent caller may own the slot");
+    }
+
+    #[tokio::test]
+    async fn temp_dir_guard_removes_the_dataset_directory() {
+        let root = tempfile::TempDir::new().unwrap();
+        let dir = root.path().join("tmp/train_guard_test");
+        tokio::fs::create_dir_all(dir.join("ds/images")).await.unwrap();
+        tokio::fs::write(dir.join("ds/labels.txt"), b"x").await.unwrap();
+
+        drop(TempDirGuard(dir.clone()));
+
+        // The guard schedules the removal on the runtime; wait for it to land.
+        for _ in 0..50 {
+            if !dir.exists() {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        panic!("dataset directory still present after the guard dropped");
+    }
 }

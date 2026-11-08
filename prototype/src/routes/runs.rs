@@ -124,21 +124,7 @@ async fn emit_snapshot(st: &AppState, run_id: &str) {
 
 /// Spec section 4: a run is `partial` when any method failed or needs a
 /// cold-start pack, `failed` only when every method failed.
-async fn derive_run_status(st: &AppState, run_id: &str) -> &'static str {
-    let rows: Vec<(String, i64)> = match sqlx::query_as(
-        "SELECT status, COUNT(*) FROM run_methods WHERE run_id = ? GROUP BY status",
-    )
-    .bind(run_id)
-    .fetch_all(&st.pool)
-    .await
-    {
-        Ok(rows) => rows,
-        Err(e) => {
-            tracing::error!(error = ?e, run_id, "failed to derive run status");
-            return "completed";
-        }
-    };
-
+fn classify_run_status(rows: &[(String, i64)]) -> &'static str {
     let mut total = 0i64;
     let mut failed = 0i64;
     let mut cold = 0i64;
@@ -159,6 +145,18 @@ async fn derive_run_status(st: &AppState, run_id: &str) -> &'static str {
     } else {
         "completed"
     }
+}
+
+/// Reads the per-method rows and classifies the run. A failed query is a real
+/// error: finalising the run as `completed` on a DB error would hide failures.
+async fn derive_run_status(st: &AppState, run_id: &str) -> anyhow::Result<&'static str> {
+    let rows: Vec<(String, i64)> = sqlx::query_as(
+        "SELECT status, COUNT(*) FROM run_methods WHERE run_id = ? GROUP BY status",
+    )
+    .bind(run_id)
+    .fetch_all(&st.pool)
+    .await?;
+    Ok(classify_run_status(&rows))
 }
 
 pub async fn create_run(
@@ -264,12 +262,21 @@ pub async fn create_run(
                 save_failure(&st_orch, &run_id_orch, &method_id, 0, &msg, json!({})).await;
             }
         }
-        let status = derive_run_status(&st_orch, &run_id_orch).await;
-        let _ = sqlx::query("UPDATE runs SET status = ? WHERE id = ?")
-            .bind(status)
-            .bind(&run_id_orch)
-            .execute(&st_orch.pool)
-            .await;
+        match derive_run_status(&st_orch, &run_id_orch).await {
+            Ok(status) => {
+                let _ = sqlx::query("UPDATE runs SET status = ? WHERE id = ?")
+                    .bind(status)
+                    .bind(&run_id_orch)
+                    .execute(&st_orch.pool)
+                    .await;
+            }
+            Err(e) => {
+                // Never finalise a run whose per-method rows we could not read:
+                // it stays `running` (and the SSE snapshot still carries the
+                // individual method rows) instead of being reported completed.
+                tracing::error!(error = ?e, run_id = %run_id_orch, "failed to derive run status; leaving run running");
+            }
+        }
         emit_snapshot(&st_orch, &run_id_orch).await;
         tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         st_orch.run_streams.remove(&run_id_orch);
@@ -593,4 +600,32 @@ pub async fn get_rendered_image(
         .header(header::CONTENT_TYPE, "image/jpeg")
         .body(Body::from(bytes))
         .unwrap())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::classify_run_status;
+
+    fn rows(entries: &[(&str, i64)]) -> Vec<(String, i64)> {
+        entries.iter().map(|(s, n)| (s.to_string(), *n)).collect()
+    }
+
+    #[test]
+    fn run_status_is_partial_when_some_methods_failed_or_cold_started() {
+        assert_eq!(classify_run_status(&rows(&[("completed", 2)])), "completed");
+        assert_eq!(
+            classify_run_status(&rows(&[("completed", 1), ("failed", 1)])),
+            "partial"
+        );
+        assert_eq!(
+            classify_run_status(&rows(&[("completed", 1), ("cold_start", 1)])),
+            "partial"
+        );
+        assert_eq!(
+            classify_run_status(&rows(&[("failed", 2), ("cold_start", 1)])),
+            "partial"
+        );
+        assert_eq!(classify_run_status(&rows(&[("failed", 3)])), "failed");
+        assert_eq!(classify_run_status(&[]), "completed");
+    }
 }

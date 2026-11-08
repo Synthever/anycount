@@ -80,6 +80,21 @@ def run_pass(sess, inp_name: str, im: Image.Image, imgsz: int, conf_thr: float) 
     return pts
 
 
+def accept_tiled_result(single_n: int, tiled_n: int) -> bool:
+    """Decide whether the 2x2 tiled pass replaces the single pass.
+
+    On a large image the single pass can miss everything while the tiled crops
+    still find objects; that rescue must win even though there is no single-pass
+    count to compare against. Otherwise stay inside a band around the single
+    pass: a collapse means lost objects, a spike means duplicated detections.
+    """
+    if tiled_n == 0:
+        return False
+    if single_n == 0:
+        return True
+    return 0.85 * single_n <= tiled_n <= 1.35 * single_n
+
+
 def cmd_infer(args: argparse.Namespace) -> None:
     import onnxruntime as ort
 
@@ -134,8 +149,10 @@ def cmd_infer(args: argparse.Namespace) -> None:
     # The old gate (>1.35x single) was unreachable on dense scenes where tiled
     # removes false positives instead of adding detections. Accept the tiled
     # pass when it stays inside a band around the single pass and never use a
-    # collapse (e.g. <85% of single) that would mean lost objects.
-    band_ok = tiled_kept and 0.85 * len(single_pts) <= len(tiled_kept) <= 1.35 * len(single_pts)
+    # collapse (e.g. <85% of single) that would mean lost objects. A large
+    # image where the single pass saw nothing is the rescue case: any non-empty
+    # tiled result wins (the old zero-band 0..0 rejected exactly that).
+    band_ok = accept_tiled_result(len(single_pts), len(tiled_kept))
     if band_ok:
         single_pts = tiled_kept
         mode = f"tiled_2x2_{imgsz}+point_nms"

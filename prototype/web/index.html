@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AnyCount Studio — 6-Method Object Counting Prototype</title>
+    <script>
+      // Apply the saved theme before first paint: the app mounts later and a
+      // hardcoded class would flash dark before a saved Warm Cream theme lands.
+      (function () {
+        try {
+          var saved = window.localStorage.getItem("anycount_theme");
+          var dark = saved !== "cream";
+          var root = document.documentElement;
+          root.classList.toggle("dark", dark);
+          root.classList.toggle("light-cream", !dark);
+        } catch (err) {
+          /* storage disabled: keep the dark default */
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />

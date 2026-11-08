@@ -199,7 +199,7 @@ async fn health_and_passcode_unlock_flow() {
         .to_string();
     assert_eq!(
         clear_cookie,
-        "anycount_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+        "anycount_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"
     );
     let body: Value =
         serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();

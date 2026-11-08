@@ -275,9 +275,10 @@ pub async fn run_vlm_method(
                 }
             })
             .collect();
-        if points.is_empty() {
-            return Err(anyhow::Error::new(VlmEmptyReply { preview }));
-        }
+        // `call_vlm_bytes` already refuses unparseable/prose replies, so an
+        // empty vector here means the model returned a structurally valid
+        // zero-object answer (`{"points": []}`). That is a successful count of
+        // 0 for a photo without the queried object, not an execution failure.
         return Ok(VlmRunOutput {
             points,
             grid_boxes: None,
@@ -301,9 +302,21 @@ pub async fn run_vlm_method(
     let mut total_p_tok = 0;
     let mut total_c_tok = 0;
     let mut previews = Vec::new();
+    let mut tiles_ok = 0usize;
+    let mut tile_errors = Vec::new();
 
     for item in results {
-        let (tile, (pairs, pt, ct, prev)) = item?;
+        // A single bad tile (upstream 5xx, timeout, unparseable prose) must not
+        // discard the other three: it contributes zero points and the rest of
+        // the tiles still count. The method only fails when every tile fails.
+        let (tile, (pairs, pt, ct, prev)) = match item {
+            Ok(v) => v,
+            Err(e) => {
+                tile_errors.push(e.to_string());
+                continue;
+            }
+        };
+        tiles_ok += 1;
         total_p_tok += pt;
         total_c_tok += ct;
         previews.push(format!("[{}] {}", tile.tile_id, prev));
@@ -330,11 +343,17 @@ pub async fn run_vlm_method(
         }
     }
 
-    if all_tiled_pts.is_empty() {
+    for err in &tile_errors {
+        previews.push(format!("[tile-error] {err}"));
+    }
+
+    if tiles_ok == 0 {
         return Err(anyhow::Error::new(VlmEmptyReply {
             preview: previews.join("\n"),
         }));
     }
+    // At least one tile answered structurally; zero points then means "no such
+    // object in this photo", which is a valid count of 0.
 
     let dedup = adaptive_point_nms(&all_tiled_pts, orig_w, orig_h);
     let orig_cores: Vec<[i32; 4]> = work_cores
@@ -361,6 +380,154 @@ pub async fn run_vlm_method(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    fn find_header_end(buf: &[u8]) -> Option<usize> {
+        buf.windows(4).position(|w| w == b"\r\n\r\n")
+    }
+
+    /// Minimal stand-in for the LLM gateway: each request gets the next
+    /// scripted `(status, message content)` reply; the last entry repeats.
+    async fn spawn_vlm_mock(replies: Vec<(u16, String)>) -> (String, Arc<AtomicUsize>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let hits = Arc::new(AtomicUsize::new(0));
+        let counter = hits.clone();
+        tokio::spawn(async move {
+            loop {
+                let Ok((mut sock, _)) = listener.accept().await else {
+                    break;
+                };
+                let replies = replies.clone();
+                let counter = counter.clone();
+                tokio::spawn(async move {
+                    let mut buf = Vec::new();
+                    let mut chunk = [0u8; 2048];
+                    let header_end = loop {
+                        match sock.read(&mut chunk).await {
+                            Ok(0) | Err(_) => return,
+                            Ok(n) => buf.extend_from_slice(&chunk[..n]),
+                        }
+                        if let Some(pos) = find_header_end(&buf) {
+                            break pos;
+                        }
+                    };
+                    let head = String::from_utf8_lossy(&buf[..header_end]).to_lowercase();
+                    let content_len: usize = head
+                        .lines()
+                        .find_map(|l| l.strip_prefix("content-length:"))
+                        .and_then(|v| v.trim().parse().ok())
+                        .unwrap_or(0);
+                    let already = buf.len() - (header_end + 4);
+                    if content_len > already {
+                        let mut rest = vec![0u8; content_len - already];
+                        if sock.read_exact(&mut rest).await.is_err() {
+                            return;
+                        }
+                    }
+                    let idx = counter.fetch_add(1, Ordering::SeqCst);
+                    let (status, content) = replies[idx.min(replies.len() - 1)].clone();
+                    let body = if status == 200 {
+                        json!({
+                            "choices": [{"message": {"content": content}}],
+                            "usage": {"prompt_tokens": 7, "completion_tokens": 3}
+                        })
+                        .to_string()
+                    } else {
+                        content
+                    };
+                    let resp = format!(
+                        "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                        body.len(),
+                        body
+                    );
+                    let _ = sock.write_all(resp.as_bytes()).await;
+                    let _ = sock.shutdown().await;
+                });
+            }
+        });
+        (format!("http://{addr}/v1/chat/completions"), hits)
+    }
+
+    fn test_cfg(dir: &Path, url: String) -> Config {
+        let mut cfg = Config::for_test(dir);
+        cfg.vlm_api_url = url;
+        cfg
+    }
+
+    #[tokio::test]
+    async fn valid_empty_points_is_a_zero_count_not_an_error() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (url, _hits) = spawn_vlm_mock(vec![(200, r#"{"points": []}"#.to_string())]).await;
+        let img = dir.path().join("work.jpg");
+        std::fs::write(&img, b"any-bytes-work-for-the-single-pass").unwrap();
+
+        let out = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m3", &img, 1000, 800, "apple")
+            .await
+            .expect("a structurally valid zero-object reply must succeed");
+        assert!(out.points.is_empty());
+        assert_eq!(out.raw_preview, r#"{"points": []}"#);
+        assert_eq!(out.prompt_tokens, 7);
+    }
+
+    #[tokio::test]
+    async fn prose_reply_still_fails_the_single_pass() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (url, _hits) =
+            spawn_vlm_mock(vec![(200, "I could not find any apples here.".to_string())]).await;
+        let img = dir.path().join("work.jpg");
+        std::fs::write(&img, b"any-bytes").unwrap();
+
+        let err = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m3", &img, 1000, 800, "apple")
+            .await
+            .expect_err("unparseable replies must stay errors");
+        assert!(err.downcast_ref::<VlmEmptyReply>().is_some());
+    }
+
+    fn write_test_jpeg(dir: &Path) -> std::path::PathBuf {
+        let img = dir.join("work.jpg");
+        image::RgbImage::from_pixel(400, 400, image::Rgb([90, 120, 150]))
+            .save(&img)
+            .unwrap();
+        img
+    }
+
+    #[tokio::test]
+    async fn one_failing_tile_keeps_the_other_three() {
+        // The first tile request hits an upstream 500; the remaining three
+        // answer with one centred point each. The method must still succeed.
+        let dir = tempfile::TempDir::new().unwrap();
+        let (url, hits) = spawn_vlm_mock(vec![
+            (500, "upstream boom".to_string()),
+            (200, r#"{"points": [[500, 500]]}"#.to_string()),
+        ])
+        .await;
+        let img = write_test_jpeg(dir.path());
+
+        let out = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m4", &img, 400, 400, "apple")
+            .await
+            .expect("one failed tile must not fail M4");
+        assert_eq!(hits.load(Ordering::SeqCst), 4);
+        assert_eq!(out.points.len(), 3);
+        assert!(out.raw_preview.contains("tile-error"));
+        assert_eq!(out.grid_boxes.as_ref().unwrap().len(), 4);
+    }
+
+    #[tokio::test]
+    async fn every_tile_failing_still_fails_the_method() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let (url, hits) = spawn_vlm_mock(vec![(500, "upstream boom".to_string())]).await;
+        let img = write_test_jpeg(dir.path());
+
+        let err = run_vlm_method(&reqwest::Client::new(), &test_cfg(dir.path(), url), "m6", &img, 400, 400, "apple")
+            .await
+            .expect_err("all tiles failing must fail the method");
+        assert!(err.downcast_ref::<VlmEmptyReply>().is_some());
+        assert_eq!(hits.load(Ordering::SeqCst), 4);
+    }
 
     #[test]
     fn detects_empty_and_unparseable_replies() {
