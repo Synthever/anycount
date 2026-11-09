@@ -43,6 +43,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
 
   const [compareMode, setCompareMode] = useState<boolean>(true);
   const [selectedMethods, setSelectedMethods] = useState<string[]>(["m2", "m4", "m7"]);
+  const [invert, setInvert] = useState<boolean>(false);
 
   const [activeRun, setActiveRun] = useState<RunDetail | null>(null);
   const [recentRuns, setRecentRuns] = useState<RunDetail[]>([]);
@@ -186,7 +187,7 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
     setBanner(null);
 
     try {
-      const created = await api.createRun(imgId, q.trim(), methodsToRun);
+      const created = await api.createRun(imgId, q.trim(), methodsToRun, invert);
       setActiveRun(created);
       refreshHistory();
 
@@ -307,6 +308,17 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
                 >
                   &ldquo;{activeRun ? activeRun.query : query}&rdquo;
                 </span>
+                {activeRun?.inverted && (
+                  <span
+                    className="px-2 py-0.5 rounded-md font-mono-tech text-[11px] font-semibold"
+                    style={{
+                      backgroundColor: "var(--brand-ochre)",
+                      color: "#0a0a0a",
+                    }}
+                  >
+                    Inverted
+                  </span>
+                )}
               </div>
               <div
                 className="font-mono-tech text-[11px] flex flex-wrap items-center gap-3"
@@ -557,6 +569,8 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
         onToggleCompareMode={setCompareMode}
         selectedMethods={selectedMethods}
         onChangeMethods={setSelectedMethods}
+        invert={invert}
+        onToggleInvert={() => setInvert((v) => !v)}
         onSelectSample={handleSelectSample}
         onUploadFile={handleUploadFile}
         onSubmitRun={handleSubmitRun}

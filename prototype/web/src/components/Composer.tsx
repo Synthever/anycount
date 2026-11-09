@@ -7,6 +7,7 @@ import {
   CheckSquare,
   Square,
   Sparkles,
+  Contrast,
 } from "lucide-react";
 import { SamplePreset } from "../api/client";
 
@@ -30,6 +31,8 @@ interface ComposerProps {
   onToggleCompareMode: (compare: boolean) => void;
   selectedMethods: string[];
   onChangeMethods: (methods: string[]) => void;
+  invert: boolean;
+  onToggleInvert: () => void;
   onSelectSample: (sample: SamplePreset) => void;
   onUploadFile: (file: File) => void;
   onSubmitRun: () => void;
@@ -48,6 +51,8 @@ export const Composer: React.FC<ComposerProps> = ({
   onToggleCompareMode,
   selectedMethods,
   onChangeMethods,
+  invert,
+  onToggleInvert,
   onSelectSample,
   onUploadFile,
   onSubmitRun,
@@ -312,6 +317,30 @@ export const Composer: React.FC<ComposerProps> = ({
 
         {/* Compare Presets */}
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onToggleInvert}
+            aria-pressed={invert}
+            title="Balik warna gambar (RGB negative) sebelum counting"
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium cursor-pointer"
+            style={
+              invert
+                ? {
+                    backgroundColor: "var(--brand-ochre)",
+                    color: "#0a0a0a",
+                    fontWeight: 600,
+                  }
+                : {
+                    backgroundColor: "var(--surface-card)",
+                    border: "1px solid var(--hairline)",
+                    color: "var(--body-text)",
+                  }
+            }
+          >
+            <Contrast className="w-3 h-3" />
+            <span>Invert warna</span>
+          </button>
+
           <button
             type="button"
             onClick={() => {

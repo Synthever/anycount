@@ -21,6 +21,7 @@ use crate::{
     services::{
         m1_ca::run_count_anything,
         m2_onnx::{run_m2_onnx, OnnxMode, OnnxOutcome},
+        preprocess::ensure_inverted_jpeg,
         renderer::{render_annotated_jpeg, Point2D},
         vlm::{run_vlm_method, VlmEmptyReply},
     },
@@ -35,18 +36,20 @@ pub struct CreateRunReq {
     pub image_id: String,
     pub query: String,
     pub methods: Vec<String>,
+    #[serde(default)]
+    pub invert: bool,
 }
 
 pub async fn load_run_json(st: &AppState, run_id: &str) -> anyhow::Result<Option<Value>> {
-    let run_row: Option<(String, String, String, String, String, i64, i64)> = sqlx::query_as(
-        "SELECT r.id, r.image_id, r.query, r.status, r.created_at, i.width, i.height \
+    let run_row: Option<(String, String, String, String, String, i64, i64, i64)> = sqlx::query_as(
+        "SELECT r.id, r.image_id, r.query, r.status, r.created_at, i.width, i.height, r.inverted \
          FROM runs r JOIN images i ON i.id = r.image_id WHERE r.id = ?",
     )
     .bind(run_id)
     .fetch_optional(&st.pool)
     .await?;
 
-    let Some((id, image_id, query, status, created_at, width, height)) = run_row else {
+    let Some((id, image_id, query, status, created_at, width, height, inverted)) = run_row else {
         return Ok(None);
     };
 
@@ -104,12 +107,13 @@ pub async fn load_run_json(st: &AppState, run_id: &str) -> anyhow::Result<Option
     Ok(Some(json!({
         "runId": id,
         "imageId": image_id,
-        "imageUrl": format!("/api/images/{image_id}/raw"),
+        "imageUrl": format!("/api/runs/{id}/raw"),
         "imageWidth": width,
         "imageHeight": height,
         "query": query,
         "status": status,
         "createdAt": created_at,
+        "inverted": inverted != 0,
         "methods": methods,
     })))
 }
@@ -190,15 +194,41 @@ pub async fn create_run(
     let (orig_path, work_path, orig_w, orig_h) =
         img_row.ok_or_else(|| AppError::NotFound("Gambar tidak ditemukan".into()))?;
 
+    // Inversion is derived from `work_path` so the only variable that changes is
+    // colour, not resolution or JPEG quality. All methods and the renderer read
+    // the derivative; `orig_path` stays untouched.
+    let model_path = if req.invert {
+        let src = PathBuf::from(&work_path);
+        let dst = st
+            .cfg
+            .data_dir
+            .join("derived")
+            .join(format!("{}_invert.jpg", req.image_id));
+        let dst_for_task = dst.clone();
+        tokio::task::spawn_blocking(move || ensure_inverted_jpeg(&src, &dst_for_task))
+            .await
+            .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?
+            .map_err(AppError::Internal)?;
+        dst
+    } else {
+        PathBuf::from(&work_path)
+    };
+    let render_path = if req.invert {
+        model_path.clone()
+    } else {
+        PathBuf::from(&orig_path)
+    };
+
     let run_id = format!("run_{}", &generate_token()[..16]);
     let now = now_rfc3339();
     sqlx::query(
-        "INSERT INTO runs (id, image_id, query, status, created_at) VALUES (?, ?, ?, 'running', ?)",
+        "INSERT INTO runs (id, image_id, query, status, created_at, inverted) VALUES (?, ?, ?, 'running', ?, ?)",
     )
     .bind(&run_id)
     .bind(&req.image_id)
     .bind(&query)
     .bind(&now)
+    .bind(req.invert)
     .execute(&st.pool)
     .await
     .map_err(|e| AppError::Internal(e.into()))?;
@@ -238,8 +268,8 @@ pub async fn create_run(
             let st_m = st_orch.clone();
             let rid = run_id_orch.clone();
             let q = query.clone();
-            let orig_p = PathBuf::from(&orig_path);
-            let work_p = PathBuf::from(&work_path);
+            let render_p = render_path.clone();
+            let model_p = model_path.clone();
             let w = orig_w as u32;
             let h = orig_h as u32;
             let mid = method_id.clone();
@@ -247,7 +277,7 @@ pub async fn create_run(
             handles.push((
                 method_id,
                 tokio::spawn(async move {
-                    execute_single_method(&st_m, &rid, &mid, &orig_p, &work_p, w, h, &q).await;
+                    execute_single_method(&st_m, &rid, &mid, &render_p, &model_p, w, h, &q).await;
                 }),
             ));
         }
@@ -289,7 +319,7 @@ async fn execute_single_method(
     st: &AppState,
     run_id: &str,
     method_id: &str,
-    orig_path: &PathBuf,
+    render_src: &PathBuf,
     work_path: &PathBuf,
     orig_w: u32,
     orig_h: u32,
@@ -314,7 +344,7 @@ async fn execute_single_method(
         "m1" => match run_count_anything(st, work_path, orig_w, orig_h, query, run_id).await {
             Ok(ca) => {
                 let _ =
-                    render_annotated_jpeg(orig_path, &ca.points, None, &render_out, Some(query));
+                    render_annotated_jpeg(render_src, &ca.points, None, &render_out, Some(query));
                 save_success(
                     st,
                     run_id,
@@ -365,7 +395,7 @@ async fn execute_single_method(
                 mode,
             }) => {
                 let _ = render_annotated_jpeg(
-                    orig_path,
+                    render_src,
                     &points,
                     grid_boxes.as_deref(),
                     &render_out,
@@ -426,7 +456,7 @@ async fn execute_single_method(
                 Ok(vlm) => {
                     let elapsed_ms = started.elapsed().as_millis() as i64;
                     let _ = render_annotated_jpeg(
-                        orig_path,
+                        render_src,
                         &vlm.points,
                         vlm.grid_boxes.as_deref(),
                         &render_out,
@@ -586,6 +616,43 @@ pub async fn stream_run(
     };
 
     Ok(Sse::new(init_stream.chain(live_stream)).keep_alive(KeepAlive::default()))
+}
+
+/// Serves the exact source image a run counted on: the original upload for
+/// normal runs, the RGB-negative derivative for inverted ones.
+pub async fn get_run_source_image(
+    State(st): State<AppState>,
+    _session: RequireSession,
+    Path(id): Path<String>,
+) -> Result<Response, AppError> {
+    let row: Option<(String, String, i64)> = sqlx::query_as(
+        "SELECT r.image_id, i.orig_path, r.inverted FROM runs r \
+         JOIN images i ON i.id = r.image_id WHERE r.id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&st.pool)
+    .await
+    .map_err(|e| AppError::Internal(e.into()))?;
+
+    let (image_id, orig_path, inverted) =
+        row.ok_or_else(|| AppError::NotFound("Run tidak ditemukan".into()))?;
+    let path = if inverted != 0 {
+        st.cfg
+            .data_dir
+            .join("derived")
+            .join(format!("{image_id}_invert.jpg"))
+    } else {
+        PathBuf::from(orig_path)
+    };
+    let bytes = tokio::fs::read(&path)
+        .await
+        .map_err(|_| AppError::NotFound("Gambar run tidak ditemukan".into()))?;
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "image/jpeg")
+        .body(Body::from(bytes))
+        .unwrap())
 }
 
 pub async fn get_rendered_image(

@@ -26,6 +26,7 @@ export interface RunDetail {
   query: string;
   status: string;
   createdAt: string;
+  inverted: boolean;
   methods: MethodResult[];
 }
 
@@ -121,11 +122,11 @@ export const api = {
       body: JSON.stringify({ imageId, query }),
     }),
   getDocs: () => reqJson<DocsPayload>("/api/docs"),
-  createRun: (imageId: string, query: string, methods: string[]) =>
+  createRun: (imageId: string, query: string, methods: string[], invert = false) =>
     reqJson<RunDetail>("/api/runs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imageId, query, methods }),
+      body: JSON.stringify({ imageId, query, methods, invert }),
     }),
   listRuns: () => reqJson<{ runs: RunDetail[] }>("/api/runs"),
   getRun: (runId: string) => reqJson<RunDetail>(`/api/runs/${runId}`),

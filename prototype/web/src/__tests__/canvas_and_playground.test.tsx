@@ -94,6 +94,8 @@ describe("InteractiveCanvas dot editing logic", () => {
         onToggleCompareMode={() => {}}
         selectedMethods={["m2", "m4", "m7"]}
         onChangeMethods={onChangeMethods}
+        invert={false}
+        onToggleInvert={() => {}}
         onSelectSample={() => {}}
         onUploadFile={() => {}}
         onSubmitRun={() => {}}

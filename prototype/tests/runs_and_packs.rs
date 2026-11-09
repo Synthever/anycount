@@ -110,6 +110,101 @@ async fn m2_cold_start_and_run_creation_work() {
 }
 
 #[tokio::test]
+async fn inverted_run_serves_negative_source_and_requires_session() {
+    let tmp = TempDir::new().unwrap();
+    let cfg = anycount_prototype::config::Config::for_test(tmp.path());
+    let state = anycount_prototype::state::AppState::init(cfg)
+        .await
+        .unwrap();
+    let app = anycount_prototype::router(state.clone());
+
+    let cookie = unlock_cookie(&app).await;
+
+    let img_path = tmp.path().join("uploads/img_inv.jpg");
+    RgbImage::from_pixel(4, 2, Rgb([10, 20, 30]))
+        .save(&img_path)
+        .unwrap();
+    sqlx::query(
+        "INSERT INTO images (id, filename, width, height, orig_path, work_path, is_sample, created_at) \
+         VALUES ('img_inv', 'inv.jpg', 4, 2, ?, ?, 0, '2026-11-07T00:00:00Z')",
+    )
+    .bind(img_path.to_string_lossy().to_string())
+    .bind(img_path.to_string_lossy().to_string())
+    .execute(&state.pool)
+    .await
+    .unwrap();
+
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/runs")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    r#"{"imageId":"img_inv","query":"pineapple","methods":["m2"],"invert":true}"#,
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let created: Value =
+        serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let run_id = created["runId"].as_str().unwrap().to_string();
+    assert_eq!(created["inverted"], true, "run must record the inversion");
+
+    // The derivative is what every method (and the renderer) reads.
+    let derived = tmp.path().join("derived").join("img_inv_invert.jpg");
+    assert!(derived.exists(), "inverted derivative must be written");
+    let px = image::open(&derived)
+        .unwrap()
+        .to_rgb8()
+        .get_pixel(0, 0)
+        .0;
+    for (got, want) in px.iter().zip([245u8, 235, 225]) {
+        assert!(
+            (*got as i16 - want as i16).abs() <= 6,
+            "expected ~{want}, got {got}"
+        );
+    }
+
+    // Source endpoint is session-gated...
+    let anon = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/runs/{run_id}/raw"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
+
+    // ...and serves the inverted bytes, not the original.
+    let res = app
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/runs/{run_id}/raw"))
+                .header(header::COOKIE, &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get(header::CONTENT_TYPE).unwrap(),
+        "image/jpeg"
+    );
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    let orig = std::fs::read(&img_path).unwrap();
+    assert_ne!(body.as_ref(), orig.as_slice());
+}
+
+#[tokio::test]
 async fn docs_payload_lists_seven_methods_with_new_ids() {
     let tmp = TempDir::new().unwrap();
     let cfg = anycount_prototype::config::Config::for_test(tmp.path());
@@ -161,6 +256,7 @@ async fn run_endpoints_require_session() {
         "/api/runs",
         "/api/runs/run_missing",
         "/api/runs/run_missing/stream",
+        "/api/runs/run_missing/raw",
         "/api/runs/run_missing/render/m2",
     ] {
         let res = app

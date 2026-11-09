@@ -40,6 +40,7 @@ pub fn router(state: state::AppState) -> Router {
         .route("/api/runs", get(routes::runs::list_runs).post(routes::runs::create_run))
         .route("/api/runs/{id}", get(routes::runs::get_run))
         .route("/api/runs/{id}/stream", get(routes::runs::stream_run))
+        .route("/api/runs/{id}/raw", get(routes::runs::get_run_source_image))
         .route(
             "/api/runs/{id}/render/{method_id}",
             get(routes::runs::get_rendered_image),

@@ -49,7 +49,8 @@ Public read-only endpoints: `/api/health`, `/api/auth/status`, `/api/samples`,
 Session-gated (`anycount_session` cookie from `POST /api/auth/unlock`): `POST /api/images`,
 `POST /api/runs`, `POST /api/packs/train`, and the per-user run surface
 `GET /api/runs`, `GET /api/runs/{id}`, `GET /api/runs/{id}/stream`,
-`GET /api/runs/{id}/render/{method_id}` (they expose uploaded photos and their points).
+`GET /api/runs/{id}/raw`, `GET /api/runs/{id}/render/{method_id}` (they expose uploaded
+photos and their points).
 
 ### Provisioning `.env` (VPS)
 
@@ -210,3 +211,10 @@ curl -s -o /tmp/render.jpg -w '%{http_code}\n' $BASE/api/runs/<runId>/render/m2
 `GET /api/runs/{id}/stream` (SSE). Each method reports `status`
 (`running`/`queued`/`completed`/`cold_start`/`failed`), `count`, `points`, `gridBoxes`,
 `elapsedMs`, token usage and `renderedUrl`.
+
+Add `"invert": true` to the run payload to count on the RGB-negative derivative of the
+image (every channel becomes `255 - value`). The derivative is cached per image under
+`{ANYCOUNT_DATA_DIR}/derived/{imageId}_invert.jpg`, all seven methods and the renderer
+read it, and the run reports `"inverted": true` while `GET /api/runs/{id}/raw` serves
+the exact source image that run counted on (session-gated, like the rest of the run
+surface).
