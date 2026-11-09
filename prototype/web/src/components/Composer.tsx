@@ -137,7 +137,7 @@ export const Composer: React.FC<ComposerProps> = ({
                     }
               }
             >
-              {shortName} ({s.groundTruth})
+              {shortName}
             </button>
           );
         })}

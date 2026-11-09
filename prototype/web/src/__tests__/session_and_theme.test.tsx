@@ -80,10 +80,10 @@ describe("Playground session gating", () => {
 
     expect(await screen.findByRole("button", { name: /Upload gambar/i })).toBeTruthy();
 
-    fireEvent.click(await screen.findByRole("button", { name: /apples \(289\)/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /^apples$/i }));
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /^apples$/i })).toBeTruthy()
+      expect(screen.getAllByRole("button", { name: /^apples$/i }).length).toBe(2)
     );
   });
 });

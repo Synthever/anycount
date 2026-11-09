@@ -39,7 +39,6 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
     w: 1000,
     h: 667,
   });
-  const [groundTruth, setGroundTruth] = useState<number | null>(289);
   const [query, setQuery] = useState<string>("apples");
 
   const [compareMode, setCompareMode] = useState<boolean>(true);
@@ -75,7 +74,6 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
           // sample preset should change what the composer button says.
           setSelectedImageUrl(def.url);
           setSelectedImageDim({ w: def.width, h: def.height });
-          setGroundTruth(def.groundTruth);
           setQuery(def.defaultQuery);
         }
       })
@@ -135,7 +133,6 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
     setSelectedImageLabel(sample.filename.replace(/\.jpg$/i, ""));
     setSelectedImageUrl(sample.url);
     setSelectedImageDim({ w: sample.width, h: sample.height });
-    setGroundTruth(sample.groundTruth);
     setQuery(sample.defaultQuery);
     setBanner(null);
   };
@@ -153,7 +150,6 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
       setSelectedImageLabel(file.name);
       setSelectedImageUrl(uploaded.url);
       setSelectedImageDim({ w: uploaded.width, h: uploaded.height });
-      setGroundTruth(null);
       setBanner({
         type: "success",
         text: `Gambar "${uploaded.filename}" (${uploaded.width}×${uploaded.height}) siap diuji.`,
@@ -311,18 +307,6 @@ export const PlaygroundPage: React.FC<PlaygroundPageProps> = ({
                 >
                   &ldquo;{activeRun ? activeRun.query : query}&rdquo;
                 </span>
-                {groundTruth != null &&
-                  (!activeRun || activeRun.imageId === selectedImageId) && (
-                    <span
-                      className="px-2 py-0.5 rounded-md font-mono-tech text-[11px]"
-                      style={{
-                        backgroundColor: "var(--surface-strong)",
-                        color: "var(--brand-emerald)",
-                      }}
-                    >
-                      Ref GT: {groundTruth}
-                    </span>
-                  )}
               </div>
               <div
                 className="font-mono-tech text-[11px] flex flex-wrap items-center gap-3"
