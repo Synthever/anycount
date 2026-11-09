@@ -1,56 +1,69 @@
 # Spike 005: Inversi Warna (RGB Negative) sebagai Preprocessing Counting
 
 Pertanyaan: apakah membalik warna gambar (`R,G,B → 255−nilai`) sebelum counting membuat
-objek lebih mudah dideteksi oleh ketujuh metode AnyCount?
+objek lebih mudah dideteksi oleh metode AnyCount?
 
 Fitur yang diuji: flag `invert` pada `POST /api/runs` (lihat `prototype/README.md`).
 Derivatif dibuat dari `work_path` (JPEG ≤1280px q90) sehingga satu-satunya variabel yang
 berubah adalah warna, bukan resolusi atau kompresi. Semua metode dan renderer membaca
 derivatif yang sama; `GET /api/runs/{id}/raw` menyajikan citra yang benar-benar dihitung.
 
-## Setup
+Data mentah: `ab_runs.json` (dihasilkan `run_ab.py`). Service: `anycount-prototype`
+release build, 2026-11-09, `127.0.0.1:2030`.
 
-- Service: `anycount-prototype.service` (release build, `127.0.0.1:2030`, live di
-  `https://testing.rkhyg.xyz`), dijalankan 2026-11-09.
-- Sampel: `apples.jpg` (query `apples`), `tennis-ball.jpg` (query `tennis ball`).
-- Baseline dan run inverted dieksekusi berurutan pada service yang sama; baseline
-  memakai `invert:false`, perlakuan memakai `invert:true`.
+## Hasil 1 — Metode offline (deterministik, 1 run per sel)
 
-## Hasil (jumlah objek terhitung)
+Pack yang tersedia hanya apple, cat, tennis-ball; kelas lain cold-start di M2/M3.
 
 | Gambar | Metode | Baseline | Inverted | Selisih | Waktu baseline → inverted |
 | --- | --- | --- | --- | --- | --- |
+| cats | M2 ONNX single 640 | 5 | 9 | **+4** | 238 ms → 235 ms |
+| cats | M3 ONNX 2×2 + Point-NMS | 14 | 14 | 0 | 525 ms → 527 ms |
 | apples | M2 ONNX single 640 | 324 | 213 | −111 | 203 ms → 183 ms |
 | apples | M4 Gemini single-pass | 551 | 248 | −303 | 115.4 s → 24.2 s |
 | tennis-ball | M2 ONNX single 640 | 41 | 11 | −30 | 451 ms → 339 ms |
 | tennis-ball | M3 ONNX 2×2 + Point-NMS | 24 | 0 | −24 | 987 ms → 972 ms |
 
-Run id: `run_d8b1a6fb4a272b1a` (apples baseline), `run_09a3a53c5911d9a7` (apples inverted),
-`run_3d100b0a1b64654f` (tennis baseline), `run_6873b408a531c975` (tennis inverted).
+Run id apples/tennis: `run_d8b1a6fb4a272b1a`, `run_09a3a53c5911d9a7`,
+`run_3d100b0a1b64654f`, `run_6873b408a531c975`; run cats ada di `ab_runs.json`.
+
+## Hasil 2 — M6 DeepSeek single-pass (VLM, 3 repetisi, mean ± sd)
+
+| Gambar | Baseline | Inverted | Delta mean |
+| --- | --- | --- | --- |
+| apples | 387.0 ± 174.3 (190–521) | 305.7 ± 72.0 (239–382) | −81.3 |
+| containers | 61.0 ± 27.7 (44–93) | 35.3 ± 2.3 (34–38) | −25.7 |
+| candy | 137.7 ± 30.4 (103–160) | 100.0 ± 2.6 (98–103) | −37.7 |
+| blueberry | 116.7 ± 12.1 (103–126) | 95.7 ± 1.5 (94–97) | −21.0 |
+| coins | 24.0 ± 0.0 (24–24) | 24.0 ± 0.0 (24–24) | 0.0 |
 
 ## Observasi
 
-1. **Inversi konsisten menurunkan jumlah deteksi offline.** M2 kehilangan 34% (apples)
-   dan 73% (tennis-ball); M3 pada tennis-ball jatuh ke 0 — pack dilatih pada warna asli,
-   jadi membalik warna membuat distribusi input keluar dari data latih.
-2. **VLM juga turun.** M4 pada apples 551 → 248. Baseline 551 sendiri jauh di atas
-   perkiraan visual dan butuh 115 detik (antrean gateway), sedangkan run inverted selesai
-   24 detik; angka 248 lebih dekat ke ~289 tetapi belum bisa disebut akurasi karena GT
-   belum diverifikasi manual.
-3. **Belum ada bukti "lebih keliatan" berbanding lurus dengan hasil hitung.** Persepsi
-   mata bahwa objek lebih jelas setelah inversi tidak terbawa ke model: baik detektor
-   terlatih maupun VLM justru menghasilkan hitungan lebih sedikit.
+1. **Tidak ada perbaikan yang konsisten.** Dari 11 sel uji, hanya cats/M2 yang naik
+   (5 → 9); sisanya turun atau identik. Baik detektor offline (pack dilatih pada warna
+   asli) maupun VLM kehilangan deteksi saat input dibalik.
+2. **Offline paling rentan.** Pack apple/tennis kehilangan 34–73% deteksi; M3 pada
+   tennis-ball jatuh ke 0. Pack tidak pernah melihat distribusi warna terbalik.
+3. **VLM juga turun, tapi variasinya menyusut.** M6 kehilangan 17–42% pada apples,
+   containers, candy, blueberry; containers turun dari 61 ± 28 menjadi 35 ± 2 (lebih
+   stabil). coins tetap 24 di kedua kondisi — satu-satunya kelas yang tidak terpengaruh.
+4. **Persepsi "lebih jelas" tidak terbawa ke model.** Mata melihat objek lebih kontras
+   setelah inversi, tetapi hitungan model justru lebih sedikit. Baseline apples/M4 (551)
+   juga jauh di atas perkiraan visual dan butuh 115 detik, jadi angka VLM baseline pun
+   belum bisa dianggap patokan.
 
 ## Batasan
 
-- Ground truth gambar belum dihitung ulang secara manual (angka 289 pada `apples` masih
-  warisan dataset), jadi tabel ini membandingkan **count**, bukan akurasi.
-- Satu run per kombinasi; variasi sampling VLM dan antrean gateway belum dirata-rata.
-- Hanya dua gambar uji; kelas lain (coins, containers, Heidelbeeren) belum diuji.
+- Ground truth belum dihitung ulang manual; angka GT di benchmark (coins 24,
+  containers 64, blueberry 113, apples ~289) hanya pembanding kasar, sehingga tabel ini
+  membandingkan **count**, bukan akurasi.
+- VLM sampling bervariasi besar (apples M6 190–521); n=3 cukup untuk melihat arah, bukan
+  untuk klaim signifikansi.
+- Kelas offline terbatas pada tiga pack yang ada; kelas lain tidak bisa diuji di M2/M3.
 
 ## Rekomendasi
 
-Toggle `Invert warna` tetap dipertahankan sebagai alat eksperimen, **tidak** dijadikan
-default. Langkah riset berikutnya: ulangi A/B pada 3–4 sampel lain dengan 3 repetisi per
-kombinasi, dan hitung GT manual untuk sampel yang dipakai agar selisih bisa dibaca
-sebagai error, bukan sekadar count.
+Toggle `Invert warna` tetap opt-in sebagai alat eksperimen, **bukan** default. Kalau
+riset dilanjutkan, dua arah yang masuk akal: (a) latih pack khusus citra inverted lalu
+bandingkan dengan pack normal, atau (b) uji preprocessing lain yang tidak menggeser
+distribusi warna (grayscale, CLAHE) dengan protokol dan GT manual yang sama.

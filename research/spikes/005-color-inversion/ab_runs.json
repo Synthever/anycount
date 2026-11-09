@@ -1,0 +1,494 @@
+[
+  {
+    "sample": "sample_cats",
+    "query": "cats",
+    "invert": false,
+    "rep": 0,
+    "runId": "run_1355485907818da1",
+    "methods": [
+      {
+        "methodId": "m2",
+        "status": "completed",
+        "count": 5,
+        "elapsedMs": 238
+      },
+      {
+        "methodId": "m3",
+        "status": "completed",
+        "count": 14,
+        "elapsedMs": 525
+      }
+    ]
+  },
+  {
+    "sample": "sample_cats",
+    "query": "cats",
+    "invert": true,
+    "rep": 0,
+    "runId": "run_99e60dce4bfc3810",
+    "methods": [
+      {
+        "methodId": "m2",
+        "status": "completed",
+        "count": 9,
+        "elapsedMs": 235
+      },
+      {
+        "methodId": "m3",
+        "status": "completed",
+        "count": 14,
+        "elapsedMs": 527
+      }
+    ]
+  },
+  {
+    "sample": "sample_coins",
+    "query": "coins",
+    "invert": false,
+    "rep": 1,
+    "runId": "run_92d8d39f3ce91a74",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 24,
+        "elapsedMs": 2778
+      }
+    ]
+  },
+  {
+    "sample": "sample_coins",
+    "query": "coins",
+    "invert": false,
+    "rep": 2,
+    "runId": "run_19ca470cd3707a3d",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 24,
+        "elapsedMs": 2136
+      }
+    ]
+  },
+  {
+    "sample": "sample_coins",
+    "query": "coins",
+    "invert": false,
+    "rep": 3,
+    "runId": "run_565b3fc872c557d7",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 24,
+        "elapsedMs": 2436
+      }
+    ]
+  },
+  {
+    "sample": "sample_coins",
+    "query": "coins",
+    "invert": true,
+    "rep": 1,
+    "runId": "run_ef461f7309c4aed4",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 24,
+        "elapsedMs": 2263
+      }
+    ]
+  },
+  {
+    "sample": "sample_coins",
+    "query": "coins",
+    "invert": true,
+    "rep": 2,
+    "runId": "run_8625dd0f375b1af4",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 24,
+        "elapsedMs": 2414
+      }
+    ]
+  },
+  {
+    "sample": "sample_coins",
+    "query": "coins",
+    "invert": true,
+    "rep": 3,
+    "runId": "run_bdcbc5ceea24cbb4",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 24,
+        "elapsedMs": 2410
+      }
+    ]
+  },
+  {
+    "sample": "sample_containers",
+    "query": "container",
+    "invert": false,
+    "rep": 1,
+    "runId": "run_70b0ad91019db8c8",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 44,
+        "elapsedMs": 2660
+      }
+    ]
+  },
+  {
+    "sample": "sample_containers",
+    "query": "container",
+    "invert": false,
+    "rep": 2,
+    "runId": "run_1296494fe887f212",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 46,
+        "elapsedMs": 3674
+      }
+    ]
+  },
+  {
+    "sample": "sample_containers",
+    "query": "container",
+    "invert": false,
+    "rep": 3,
+    "runId": "run_85f7f1478d7171e6",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 93,
+        "elapsedMs": 5112
+      }
+    ]
+  },
+  {
+    "sample": "sample_containers",
+    "query": "container",
+    "invert": true,
+    "rep": 1,
+    "runId": "run_c0816681d6a1aa65",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 38,
+        "elapsedMs": 2680
+      }
+    ]
+  },
+  {
+    "sample": "sample_containers",
+    "query": "container",
+    "invert": true,
+    "rep": 2,
+    "runId": "run_2b5ac14ade7009b1",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 34,
+        "elapsedMs": 2594
+      }
+    ]
+  },
+  {
+    "sample": "sample_containers",
+    "query": "container",
+    "invert": true,
+    "rep": 3,
+    "runId": "run_afde7b79e5086d9f",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 34,
+        "elapsedMs": 1819
+      }
+    ]
+  },
+  {
+    "sample": "sample_blueberry",
+    "query": "blueberry",
+    "invert": false,
+    "rep": 1,
+    "runId": "run_57a9dddb48b1445e",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 103,
+        "elapsedMs": 5436
+      }
+    ]
+  },
+  {
+    "sample": "sample_blueberry",
+    "query": "blueberry",
+    "invert": false,
+    "rep": 2,
+    "runId": "run_3946884bbd99d635",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 121,
+        "elapsedMs": 5260
+      }
+    ]
+  },
+  {
+    "sample": "sample_blueberry",
+    "query": "blueberry",
+    "invert": false,
+    "rep": 3,
+    "runId": "run_6003d56ae306ec47",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 126,
+        "elapsedMs": 6237
+      }
+    ]
+  },
+  {
+    "sample": "sample_blueberry",
+    "query": "blueberry",
+    "invert": true,
+    "rep": 1,
+    "runId": "run_428a94fc90ca8930",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 94,
+        "elapsedMs": 5549
+      }
+    ]
+  },
+  {
+    "sample": "sample_blueberry",
+    "query": "blueberry",
+    "invert": true,
+    "rep": 2,
+    "runId": "run_784686612622b3b8",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 96,
+        "elapsedMs": 5963
+      }
+    ]
+  },
+  {
+    "sample": "sample_blueberry",
+    "query": "blueberry",
+    "invert": true,
+    "rep": 3,
+    "runId": "run_c9bf6babc604a260",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 97,
+        "elapsedMs": 6273
+      }
+    ]
+  },
+  {
+    "sample": "sample_candy",
+    "query": "candy",
+    "invert": false,
+    "rep": 1,
+    "runId": "run_4768a41ce7a6a9f1",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 160,
+        "elapsedMs": 7352
+      }
+    ]
+  },
+  {
+    "sample": "sample_candy",
+    "query": "candy",
+    "invert": false,
+    "rep": 2,
+    "runId": "run_adad0947ee2fb6c4",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 103,
+        "elapsedMs": 5928
+      }
+    ]
+  },
+  {
+    "sample": "sample_candy",
+    "query": "candy",
+    "invert": false,
+    "rep": 3,
+    "runId": "run_39e95915d5141296",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 150,
+        "elapsedMs": 6979
+      }
+    ]
+  },
+  {
+    "sample": "sample_candy",
+    "query": "candy",
+    "invert": true,
+    "rep": 1,
+    "runId": "run_eaa8ecfde2cc6803",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 103,
+        "elapsedMs": 6154
+      }
+    ]
+  },
+  {
+    "sample": "sample_candy",
+    "query": "candy",
+    "invert": true,
+    "rep": 2,
+    "runId": "run_56a5c00ec3fbfc18",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 99,
+        "elapsedMs": 6526
+      }
+    ]
+  },
+  {
+    "sample": "sample_candy",
+    "query": "candy",
+    "invert": true,
+    "rep": 3,
+    "runId": "run_09f59f3074f02526",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 98,
+        "elapsedMs": 5027
+      }
+    ]
+  },
+  {
+    "sample": "sample_apples",
+    "query": "apples",
+    "invert": false,
+    "rep": 1,
+    "runId": "run_7e135e5c569d3796",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 521,
+        "elapsedMs": 17698
+      }
+    ]
+  },
+  {
+    "sample": "sample_apples",
+    "query": "apples",
+    "invert": false,
+    "rep": 2,
+    "runId": "run_1f8fdc0684bb12a6",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 190,
+        "elapsedMs": 9982
+      }
+    ]
+  },
+  {
+    "sample": "sample_apples",
+    "query": "apples",
+    "invert": false,
+    "rep": 3,
+    "runId": "run_741c3ea84e7081c8",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 450,
+        "elapsedMs": 13600
+      }
+    ]
+  },
+  {
+    "sample": "sample_apples",
+    "query": "apples",
+    "invert": true,
+    "rep": 1,
+    "runId": "run_475a9f37674da665",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 239,
+        "elapsedMs": 8632
+      }
+    ]
+  },
+  {
+    "sample": "sample_apples",
+    "query": "apples",
+    "invert": true,
+    "rep": 2,
+    "runId": "run_b2e6b31a0804ca5f",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 296,
+        "elapsedMs": 8941
+      }
+    ]
+  },
+  {
+    "sample": "sample_apples",
+    "query": "apples",
+    "invert": true,
+    "rep": 3,
+    "runId": "run_f22d4bbafe0ec15a",
+    "methods": [
+      {
+        "methodId": "m6",
+        "status": "completed",
+        "count": 382,
+        "elapsedMs": 11892
+      }
+    ]
+  }
+]
