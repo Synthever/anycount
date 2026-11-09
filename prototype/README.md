@@ -12,7 +12,10 @@ Single-binary Rust (Axum) service that serves a React SPA (bundled into the bina
 | `m6` / `m7` | DeepSeek V4.1 Flash single-pass / 2x2 tiled + Point-NMS | JRouter gateway (cloud) |
 
 Bundled packs: `apple` (`research/spikes/004-.../models/apple_v2_distilled_int8.onnx`,
-289/289 on `apples.jpg` at `m3`) and `tennis-ball`
+289/289 on `apples.jpg` at `m3`), `apple-coco`
+(`research/packs/apple-coco/models/apple_coco_v1_int8.onnx`, YOLO11s trained on 1200
+COCO apple images — query `apple coco`; 19/20 on a sparse 20-apple photo but only 5 on
+the dense `apples.jpg`, so it is a separate pack, not a replacement) and `tennis-ball`
 (`research/packs/tennis-ball/models/tennis_ball_v1_int8.onnx`, 41/43 on `tennis-ball.jpg`
 at `m2`). Other object classes start as `cold_start` until an `.onnx` pack is trained
 from the result card or `POST /api/packs/train`.

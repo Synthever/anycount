@@ -132,6 +132,41 @@ pub async fn seed_bundled_object_packs(st: &AppState) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Seeds the COCO-pilot apple pack (YOLO11s trained on 1200 COCO apple images in
+/// Colab). It is a separate slug from `apple`: the COCO model counts sparse scenes
+/// well but collapses on dense piles, where the distilled pack remains stronger.
+pub async fn seed_coco_apple_pack(st: &AppState) -> anyhow::Result<()> {
+    let coco_onnx = st
+        .cfg
+        .repo_root
+        .join("research/packs/apple-coco/models/apple_coco_v1_int8.onnx");
+    if !coco_onnx.exists() {
+        return Ok(());
+    }
+    let size_mb =
+        ((coco_onnx.metadata()?.len() as f64) / (1024.0 * 1024.0) * 100.0).round() / 100.0;
+    let aliases = serde_json::to_string(&[
+        "apple coco",
+        "coco apple",
+        "apel coco",
+        "apple-coco",
+        "coco",
+    ])?;
+
+    sqlx::query(
+        "INSERT INTO model_packs (slug, display_name, aliases_json, onnx_path, size_mb, imgsz, trained_epochs, val_mape_pct, status, updated_at) \
+         VALUES ('apple-coco', 'Apple COCO Pilot v1 (YOLO11s INT8)', ?, ?, ?, 640, 80, NULL, 'ready', ?) \
+         ON CONFLICT(slug) DO UPDATE SET onnx_path = excluded.onnx_path, size_mb = excluded.size_mb",
+    )
+    .bind(aliases)
+    .bind(coco_onnx.to_string_lossy().to_string())
+    .bind(size_mb)
+    .bind(now_rfc3339())
+    .execute(&st.pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn list_packs(State(st): State<AppState>) -> Result<impl IntoResponse, AppError> {
     let rows: Vec<(String, String, String, f64, i64, i64, Option<f64>, String, String)> = sqlx::query_as(
         "SELECT slug, display_name, aliases_json, size_mb, imgsz, trained_epochs, val_mape_pct, status, updated_at \
