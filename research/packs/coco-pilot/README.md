@@ -1,42 +1,53 @@
 # COCO Pilot Pack — Apple (Colab)
 
-Notebook satu-file untuk membangun pack detektor `apple` dari **COCO 2017** di Google
-Colab: unduh anotasi → filter hanya gambar yang berisi kelas target → unduh gambar itu
-saja (tanpa zip 18 GB) → konversi COCO bbox ke YOLO → latih YOLO11 → validasi mAP +
-count MAPE → ekspor ONNX opset 12 → kuantisasi INT8 siap dipakai `onnx_worker.py`.
+Dua notebook Colab untuk membangun dan menyempurnakan pack detektor `apple`:
 
-- Notebook: [`apple_coco_colab.ipynb`](apple_coco_colab.ipynb)
-- Runtime: T4 GPU, `Runtime → Run all`, ±45–70 menit (80 epoch, 1200 gambar)
-- Hasil unduhan otomatis: `apple-coco_v1_int8.onnx` + `apple-coco_v1_bundle.zip`
-  (berisi `summary.json`, `results.csv`, plot training)
+1. [`apple_coco_colab.ipynb`](apple_coco_colab.ipynb) — pack dari **COCO 2017** saja:
+   unduh anotasi → filter hanya gambar berisi kelas target → unduh gambar itu saja
+   (tanpa zip 18 GB) → konversi bbox ke YOLO → latih YOLO11 → mAP + count MAPE →
+   ekspor ONNX opset 12 → INT8.
+2. [`apple_finetune_colab.ipynb`](apple_finetune_colab.ipynb) — **blend sparse + dense**:
+   COCO subset + `apples.jpg` padat (289 titik LLM dari repo) + komposit sintetis
+   (40–80 apel per kanvas, label eksak) → latih ulang → evaluasi sparse + dense →
+   bandingkan langsung dengan pack `apple-coco` v1 → ekspor INT8 + `best.pt`.
 
-## Status verifikasi
+## Hasil notebook 1 (sudah dijalankan user)
 
-- Semua cell lolos kompilasi dan JSON notebook valid.
-- Dataset path diuji nyata di VPS dengan cap kecil: 20 gambar train + 5 val, 78 bbox,
-  label YOLO valid, `data.yaml` benar.
-- Jalur training → val → export → INT8 → sanity ONNX diuji 1 epoch pada dataset 20
-  gambar (CPU, 320 px): ONNX INT8 2,9 MB, input `(1,3,320,320)`, output `(1,5,2100)`,
-  inference onnxruntime berhasil. Angka mAP/MAPE run 1 epoch itu tidak bermakna.
+YOLO11s, 80 epoch, 1200 COCO train / 75 val, mAP50 0.389, INT8 **9,41 MB**.
+Didaftarkan sebagai pack `apple-coco` (query `apple coco`). Pada foto 20 apel user ia
+menghitung **19** (M2) versus 35 milik pack distilasi, tetapi hanya 5 pada `apples.jpg`
+yang padat — karena itu notebook 2 ada.
+
+## Status verifikasi notebook 2
+
+- Semua cell lolos kompilasi dan JSON valid.
+- Dataset + komposit sintetis diuji nyata di VPS (cap 12 COCO + 3 sintetis): label
+  dense 289 baris, komposit 13–14 objek dengan label eksak, holdout terpisah dari
+  `data.yaml`, `data.yaml` benar.
+- Jalur training → eval (mAP + holdout dense + baseline `apple-coco` ONNX) → export
+  INT8 → bundle diuji 1 epoch/320 px pada dataset kecil: semua jalan (angka run itu
+  tidak bermakna).
+- Dry-run menemukan dan memperbaiki dua bug nyata: `Image` dipakai sebelum diimpor, dan
+  komposit sintetis sempat ditulis ke direktori yang salah.
 
 ## Setelah notebook selesai
 
-Kirim `apple-coco_v1_int8.onnx` ke agent. Langkah integrasi (dikerjakan agent):
+Kirim `apple-blend_v1_int8.onnx` + bundle (berisi `best.pt`). Langkah integrasi
+(dikerjakan agent):
 
-1. Simpan ke `research/packs/apple-coco/models/`.
-2. Daftarkan pack: baris `model_packs` (`slug='apple-coco'`,
-   aliases `apple, apples, apel`, `imgsz` sesuai notebook, `trained_epochs=80`) atau
-   tambahkan seeding di `prototype/src/routes/packs.rs`.
-3. Uji hitung terhadap foto GT manual (mis. 20 apel) dan bandingkan dengan pack lama
-   di playground (M2/M3).
+1. Simpan ONNX ke `research/packs/apple-blend/models/`, daftarkan pack
+   (`slug='apple-blend'`, alias mis. `apple blend`, `apel blend`).
+2. Uji head-to-head di tiga domain: foto 20 apel (GT 20), `apples.jpg` padat (~289),
+   dan beberapa foto COCO-style.
+3. Kalau menang di dua domain, pertimbangkan menjadikannya pengganti `apple`.
 
 ## Catatan penting
 
-- **Label COCO tidak lengkap untuk tumpukan padat** (`iscrowd` dilewati, dan annotator
-  tidak menandai semua instance di kerumunan). Pack ini bagus untuk apel biasa; untuk
-  tumpukan rapat tetap perlu pseudo-label/distilasi + GT manual.
-- Domain shift: foto COCO adalah apel di pasar/dapur, bukan tumpukan padat.
-- Lisensi: anotasi COCO CC BY 4.0; gambar berasal dari Flickr dengan lisensi
-  masing-masing — cantumkan atribusi jika dipakai di luar riset.
-- Knob penting di cell konfigurasi: `MODEL_WEIGHTS` (`yolo11n/s/m`), `EPOCHS`,
-  `IMG_SIZE` (pakai 960 jika objek kecil), `MAX_TRAIN_IMAGES`, dan `USE_DRIVE`.
+- **Label COCO tidak lengkap untuk tumpukan padat** (`iscrowd` dilewati). Karena itu
+  notebook 2 menambah domain padat lewat pseudo-label + komposit sintetis.
+- Komposit sintetis memakai potongan apel COCO yang ditempel; label eksak, tetapi
+  tampilannya bisa "menempel" — evaluasi dense tetap diukur pada kanvas holdout, dan
+  validasi akhir tetap GT manual.
+- Lisensi: anotasi COCO CC BY 4.0; gambar dari Flickr dengan lisensi masing-masing.
+- Knob notebook 1: `MODEL_WEIGHTS`, `EPOCHS`, `IMG_SIZE`, `MAX_TRAIN_IMAGES`.
+  Knob notebook 2 tambahan: `SYNTH_TRAIN`, `SYNTH_TEST`, `SYNTH_MIN_OBJ`, `SYNTH_MAX_OBJ`.
