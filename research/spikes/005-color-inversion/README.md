@@ -52,6 +52,26 @@ Run id apples/tennis: `run_d8b1a6fb4a272b1a`, `run_09a3a53c5911d9a7`,
    juga jauh di atas perkiraan visual dan butuh 115 detik, jadi angka VLM baseline pun
    belum bisa dianggap patokan.
 
+## Hasil 3 — citra baru dengan GT dari user (20 apel)
+
+Foto apel padat (736×981, `img_a327a9b39997f70d`) diunggah ke playground dan dihitung
+semua metode. GT = 20, dihitung manual oleh user (bukan pseudo-label) — ini datapoint
+pertama dengan GT terverifikasi.
+
+| Metode | Count | Selisih vs GT 20 | Waktu |
+| --- | --- | --- | --- |
+| M1 SAM3 | 27 | +7 | 24.3 s |
+| M2 ONNX single | 35 | +15 | 223 ms |
+| M3 ONNX 2×2 | 10 | −10 | 542 ms |
+| M4 Gemini single | **20** | 0 | 9.2 s |
+| M5 Gemini 2×2 | 30 | +10 | 9.0 s |
+| M6 DeepSeek single | 22 | +2 | 3.0 s |
+| M7 DeepSeek 2×2 | 28 | +8 | 2.1 s |
+
+Run normal: `run_47d858bbfe7aa1bc`. Pada citra yang sama dengan `invert:true`
+(`run_a4818014ee44a1b5`): M2 11, M3 0, M6 **20** (M6 kebetulan tepat, tetapi M2/M3
+runtuh seperti pola spike 005/006 — bukan bukti perbaikan).
+
 ## Batasan
 
 - Ground truth belum dihitung ulang manual; angka GT di benchmark (coins 24,
