@@ -2,3 +2,4 @@ raw/
 dataset/
 runs/
 __pycache__/
+dataset_inverted/
